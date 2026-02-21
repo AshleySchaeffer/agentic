@@ -24,7 +24,7 @@ This isolation is intentional. Your tests must verify requirements, not validate
 ## TDD Protocol
 1. Read the requirement specification and relevant type signatures / interfaces
 2. Write failing tests that encode the required behavior
-3. Run your component's test command to confirm the tests fail for the right reasons (not compilation / syntax errors unrelated to missing implementation)
+3. Run the test command scoped to the test files you just wrote to confirm they fail for the right reasons (not compilation or syntax errors unrelated to missing implementation) — do not run the full component test suite
 4. Write test files to disk
 5. Message the architect with the test file paths and a summary of what each test verifies
 6. Do NOT write any implementation code. Your job ends when the failing tests are written.
