@@ -22,14 +22,14 @@ No historical references, deprecation markers, `// legacy`, `// old`, commented-
 ## State Externalization
 All agents MUST write findings, progress, and intermediate state to disk before messaging other agents. The filesystem is the source of truth — conversation context is volatile.
 
-All agent-internal state is written under `.claude/` in the project root. No agent-produced files are written anywhere else.
-- Investigation findings → `.claude/findings/<agent-name>-<topic>.md`
-- Implementation progress → `.claude/progress/<agent-name>.md`
-- Plans and decisions → `.claude/plans/`
-- Challenge records → `.claude/challenges/`
-- Audit reports → `.claude/audits/`
+All agent-internal state is written under `.claude/agent-internals/` in the project root. No agent-produced files are written anywhere else.
+- Investigation findings → `.claude/agent-internals/findings/<agent-name>-<topic>.md`
+- Implementation progress → `.claude/agent-internals/progress/<agent-name>.md`
+- Plans and decisions → `.claude/agent-internals/plans/`
+- Challenge records → `.claude/agent-internals/challenges/`
+- Audit reports → `.claude/agent-internals/audits/`
 
-On clean shutdown, the architect deletes the entire `.claude/findings/`, `.claude/progress/`, `.claude/plans/`, `.claude/challenges/`, and `.claude/audits/` directories. No agent-produced state files may remain after work is complete.
+On clean shutdown, the architect deletes `.claude/agent-internals/` entirely. No agent-produced state files may remain after work is complete.
 
 ## Compaction Resilience
 When compacting, always preserve:

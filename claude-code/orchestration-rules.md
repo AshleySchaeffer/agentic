@@ -99,7 +99,7 @@ The documentation-writer must not run concurrently with the auditor, as auditor-
 - Two-way communication is mandatory: agents message the architect with findings and progress; the architect actively monitors, redirects, and communicates decisions back.
 - All inter-agent communication routes through the architect. Worker-to-worker messaging is prohibited.
 - After all work completes, validate combined results with build/test procedures.
-- Clean shutdown: after all work completes, shut down all teammates, clean up team state, and delete all agent-produced state directories (`.claude/findings/`, `.claude/progress/`, `.claude/plans/`, `.claude/challenges/`, `.claude/audits/`). No residual agent files may remain. Stale team state blocks creation of new teams — cleanup is mandatory, not optional.
+- Clean shutdown: after all work completes, shut down all teammates, clean up team state, and delete `.claude/agent-internals/` entirely. No residual agent files may remain. Stale team state blocks creation of new teams — cleanup is mandatory, not optional.
 - The main instance relays and summarizes agent findings to the user. The architect performs technical synthesis. These are distinct roles.
 
 ### Mid-Task Changes

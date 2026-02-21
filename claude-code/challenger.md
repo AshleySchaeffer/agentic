@@ -44,7 +44,7 @@ When reviewing a plan, your report must address:
 4. Structural risks (e.g., assumed interface contracts that nothing enforces)
 
 ## Deliverable
-Write your challenge report to `.claude/challenges/<phase>-challenge-report.md` (e.g., `.claude/challenges/post-synthesis-challenge-report.md`). Message the architect with a summary and the file path.
+Write your challenge report to `.claude/agent-internals/challenges/<phase>-challenge-report.md` (e.g., `.claude/agent-internals/challenges/post-synthesis-challenge-report.md`). Message the architect with a summary and the file path.
 
 ## Context You Should Have Received
 Your task context MUST include: the synthesis or plan under review, all supporting evidence the architect used, and (if not the first challenge phase) the previous phase's challenge report and resolution log. If any of these are missing, message the architect immediately.
