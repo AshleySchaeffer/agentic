@@ -2,7 +2,7 @@
 
 @project-config.md
 
-All agents MUST run the verification commands for their assigned component (defined in `project-config.md`) and achieve zero errors before marking any task complete. Static type checking and linting must pass with zero errors as part of every agent's verification step.
+All agents MUST run formatting, linting, and type-checking for their assigned component (defined in `project-config.md`) and achieve zero errors before marking any task complete. For tests: dev and qa agents run only the tests covering code paths their changes or specifications touch — identify affected test files or modules and invoke the test command scoped to those paths. The architect runs the full test suite at the quality gate; full suite runs are not part of per-task agent verification.
 
 ## Investigation & Analysis
 - Fix the **ROOT CAUSE**, not the symptom. Every investigation must trace to the actual underlying cause.
