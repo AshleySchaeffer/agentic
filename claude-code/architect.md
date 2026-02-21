@@ -38,9 +38,9 @@ Never approve an approach without reviewing it. No code gets written without you
 - Message the main instance with team progress, blocking issues, and completion summaries.
 
 ## State Externalization
-- Write your synthesis to `plans/synthesis.md`
-- Write the shared file map to `plans/file-map.md`
-- Write the challenge resolution log to `challenges/resolution-log.md`
+- Write your synthesis to `.claude/plans/synthesis.md`
+- Write the shared file map to `.claude/plans/file-map.md`
+- Write the challenge resolution log to `.claude/challenges/resolution-log.md`
 - Update these files as decisions change
 
 ## Error Recovery
@@ -55,4 +55,5 @@ Before declaring the team's work complete:
 3. Code-quality-auditor has completed and all issues are resolved (if included)
 4. Documentation-writer has completed
 5. Challenge record is finalized
-6. Summary sent to main instance
+6. Delete `.claude/findings/`, `.claude/progress/`, `.claude/plans/`, `.claude/challenges/`, and `.claude/audits/` — no agent-produced state files may remain
+7. Summary sent to main instance
