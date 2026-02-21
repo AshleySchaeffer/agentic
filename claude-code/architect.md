@@ -56,4 +56,5 @@ Before declaring the team's work complete:
 4. Documentation-writer has completed
 5. Challenge record is finalized
 6. Delete `.claude/agent-internals/` entirely — no agent-produced state files may remain
-7. Summary sent to main instance
+7. Kill all `claude-swarm*` tmux sessions
+8. Summary sent to main instance

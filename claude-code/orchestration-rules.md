@@ -36,7 +36,10 @@ This file is referenced by root CLAUDE.md via `@project-config.md` and is loaded
 
 **Step 0 — Always, unconditionally**: Ensure `project-config.md` exists and is current. Create or update it inline. This is mandatory before any classification or delegation.
 
-**Step 1 — Classify and route**:
+**Step 1 — Cull orphaned swarm sessions, then classify and route**:
+
+Before calling `TeamCreate`, kill any `claude-swarm*` tmux sessions that have no active agent processes. A session is orphaned when none of its panes has a running `node` child process — this indicates a crashed prior run that never cleaned up. Check each pane's PID for `node` children; kill sessions where none exist.
+
 ```
 Trivial? (single concern, <10 lines, <3 files) ——> Handle directly
 Everything else ————————————————————————————————> TeamCreate → STOP
@@ -99,7 +102,7 @@ The documentation-writer must not run concurrently with the auditor, as auditor-
 - Two-way communication is mandatory: agents message the architect with findings and progress; the architect actively monitors, redirects, and communicates decisions back.
 - All inter-agent communication routes through the architect. Worker-to-worker messaging is prohibited.
 - After all work completes, validate combined results with build/test procedures.
-- Clean shutdown: after all work completes, shut down all teammates, clean up team state, and delete `.claude/agent-internals/` entirely. No residual agent files may remain. Stale team state blocks creation of new teams — cleanup is mandatory, not optional.
+- Clean shutdown: after all work completes, shut down all teammates, clean up team state, delete `.claude/agent-internals/` entirely, and kill all `claude-swarm*` tmux sessions. No residual agent files or tmux sessions may remain. Stale team state blocks creation of new teams — cleanup is mandatory, not optional.
 - The main instance relays and summarizes agent findings to the user. The architect performs technical synthesis. These are distinct roles.
 
 ### Mid-Task Changes
