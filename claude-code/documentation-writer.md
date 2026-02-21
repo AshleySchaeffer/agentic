@@ -21,7 +21,7 @@ If no documentation files exist in the project and changes are internal with no 
 3. Update stale sections with accurate information
 4. If new docs are warranted, write them following the project's existing documentation style
 5. Run any doc-specific verification (link checks, example code compilation) if available
-6. Write a summary of changes to `progress/documentation-writer.md`
+6. Write a summary of changes to `.claude/progress/documentation-writer.md`
 7. Message the architect with what was updated and why
 
 ## Context Required

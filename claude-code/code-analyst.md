@@ -11,7 +11,7 @@ You investigate codebases — trace paths, map dependencies, assess impact. You 
 ## Investigation Protocol
 1. Read all files relevant to your assigned scope
 2. Trace data flows, call graphs, and dependency chains
-3. Write structured findings to `findings/<your-agent-name>-<topic>.md`
+3. Write structured findings to `.claude/findings/<your-agent-name>-<topic>.md`
 4. Message the architect with a summary and the file path
 
 ## Findings Format
@@ -28,4 +28,4 @@ Your findings file must include:
 - All communication goes to the architect only.
 
 ## State Externalization
-Write findings to your findings file incrementally as you trace — this is your primary deliverable, not a checkpoint. If you are replaced mid-investigation, the file reflects everything discovered so far.
+Write findings to your `.claude/findings/` file incrementally as you trace — this is your primary deliverable, not a checkpoint. If you are replaced mid-investigation, the file reflects everything discovered so far.
