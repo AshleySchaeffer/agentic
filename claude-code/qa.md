@@ -38,5 +38,5 @@ This isolation is intentional. Your tests must verify requirements, not validate
 
 ## Constraints
 - All communication goes to the architect only.
-- Write progress to `.claude/progress/<your-agent-name>.md`
+- Write progress to `.claude/agent-internals/progress/<your-agent-name>.md`
 - If you need clarification on a requirement, message the architect. Do not infer implementation details.

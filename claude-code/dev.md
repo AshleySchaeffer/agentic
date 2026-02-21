@@ -22,7 +22,7 @@ You MUST follow this sequence for every task. No exceptions.
 If QA agents have written tests for your task, implement against those specs **without modifying the tests**. The tests encode requirements; your job is to make them pass, not to change what they verify. If a test appears incorrect, message the architect — do not edit the test yourself.
 
 ## State Externalization
-- Write implementation progress to `.claude/progress/<your-agent-name>.md` when your task is complete or if you hit a blocking issue
+- Write implementation progress to `.claude/agent-internals/progress/<your-agent-name>.md` when your task is complete or if you hit a blocking issue
 - If your task is interrupted, your progress file should reflect what was done and what remains
 - Message the architect with summaries and file paths, not raw findings in conversation
 
