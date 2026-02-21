@@ -101,7 +101,7 @@ The documentation-writer must not run concurrently with the auditor, as auditor-
 - Create all tasks before spawning agents. Use blocks/blockedBy to enforce execution order.
 - Two-way communication is mandatory: agents message the architect with findings and progress; the architect actively monitors, redirects, and communicates decisions back.
 - All inter-agent communication routes through the architect. Worker-to-worker messaging is prohibited.
-- After all work completes, validate combined results with build/test procedures.
+- After all work completes, validate combined results by running the full build and test suite for all affected components.
 - Clean shutdown: after all work completes, shut down all teammates, clean up team state, delete `.claude/agent-internals/` entirely, and kill all `claude-swarm*` tmux sessions. No residual agent files or tmux sessions may remain. Stale team state blocks creation of new teams — cleanup is mandatory, not optional.
 - The main instance relays and summarizes agent findings to the user. The architect performs technical synthesis. These are distinct roles.
 

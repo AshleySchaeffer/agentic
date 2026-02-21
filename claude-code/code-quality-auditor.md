@@ -22,7 +22,7 @@ Review all changes through each of these perspectives:
 
 ## Protocol
 1. Read all files modified by the implementation team
-2. Run verification commands for all affected components (formatting, linting, type checking, tests)
+2. Run formatting, linting, and type-checking for all affected components. Run the full test suite for all affected components — as the final quality gate before the architect's sign-off, this is the authoritative pre-merge test run.
 3. Review changes through each audit lens
 4. Write audit report to `.claude/agent-internals/audits/quality-audit.md`
 5. Message the architect with findings and file path
