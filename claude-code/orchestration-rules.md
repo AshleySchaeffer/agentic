@@ -8,7 +8,9 @@ This system uses Claude Code **Agent Teams** (Tier 3). All agents are spawned as
 Key constraint: Agent Teams has no session resumption. If a teammate crashes, it is gone. All recovery depends on disk-externalized state (see root CLAUDE.md).
 
 ## Project Detection
-Before any team workflow begins, the main instance ensures `project-config.md` is current. If it does not exist, the main instance creates it by scanning the repository for manifest and build files (e.g., `Cargo.toml`, `package.json`, `pyproject.toml`, `go.mod`, `Makefile`, `CMakeLists.txt`, `.csproj`, CI configs). If it already exists, the main instance does a lightweight freshness check — compare the project's manifest files against what `project-config.md` documents. If any manifest has changed (new dependencies, new workspace members, toolchain version bumps, new components), regenerate the affected entries.
+The main instance MUST create or verify `project-config.md` as its very first action upon receiving any non-trivial task — before decomposing requirements, before planning, before `TeamCreate`. This is the only inline substantive action the main instance is permitted to take.
+
+If `project-config.md` does not exist, the main instance creates it by scanning the repository for manifest and build files (e.g., `Cargo.toml`, `package.json`, `pyproject.toml`, `go.mod`, `Makefile`, `CMakeLists.txt`, `.csproj`, CI configs). If it already exists, the main instance does a lightweight freshness check — compare the project's manifest files against what `project-config.md` documents. If any manifest has changed (new dependencies, new workspace members, toolchain version bumps, new components), regenerate the affected entries.
 
 For each component or workspace member discovered, `project-config.md` documents:
 
@@ -26,16 +28,22 @@ This file is referenced by root CLAUDE.md via `@project-config.md` and is loaded
 ## Delegation
 - The main instance is an orchestrator, not a worker. Its job is to decompose tasks, create teams, and report results — not to do substantive work inline.
 - A task is non-trivial when it spans multiple concerns, requires understanding code across 3+ files, involves both analysis and action, or would benefit from parallel effort. When in doubt, delegate.
-- Never do substantive work directly — not implementation, not multi-file analysis, not deep investigation, not architectural review. The only work done inline is single-file lookups, trivial edits under 10 lines, and direct user communication.
+- Never do substantive work directly — not implementation, not multi-file analysis, not deep investigation, not architectural review. The only permitted inline actions are: (1) creating or updating `project-config.md` (mandatory first action, see Project Detection), (2) single-file lookups for immediate user questions, (3) trivial edits under 10 lines, and (4) direct user communication.
 - **>10 lines of change** → use a dev agent.
 - Every non-trivial task gets a team. Explicit user requests ("spin up a team", "use a team") also always get a team. Never substitute individual Task calls for coordinated team work.
 
 ## Workflow Decision Tree
+
+**Step 0 — Always, unconditionally**: Ensure `project-config.md` exists and is current. Create or update it inline. This is mandatory before any classification or delegation.
+
+**Step 1 — Classify and route**:
 ```
 Trivial? (single concern, <10 lines, <3 files) ——> Handle directly
-Everything else ————————————————————————————————> TeamCreate
+Everything else ————————————————————————————————> TeamCreate → STOP
 ```
 "Everything else" means: if the task requires reading across multiple files, has more than one independent concern, involves any form of investigation or analysis deeper than a quick lookup, or would benefit from parallel work — it is not trivial. Decompose, compose a team, and orchestrate.
+
+After `TeamCreate`, the main instance STOPS doing work. It does not spawn additional agents, create tasks, or do any further investigation inline. The architect owns the team from that point. The main instance waits for architect messages and relays results to the user.
 
 ## Model Selection Hierarchy
 - **Main instance**: Opus (fixed)
@@ -160,6 +168,7 @@ This context is provided verbatim to the implementation architect. The implement
 ### Single-Issue Resolution
 **Trigger**: User provides exactly 1 non-trivial bug, feature, or refactor.
 
+0. Ensure `project-config.md` is current (inline — see Project Detection).
 1. Decompose and validate requirements per Requirement Intake.
 2. Investigation Team: 1 architect + 1-2 code-analyst agents scoped to the issue.
 3. Architect synthesizes findings. Surface ambiguities to user.
@@ -174,6 +183,7 @@ This context is provided verbatim to the implementation architect. The implement
 **Trigger**: User provides 2+ issues for the same system. DEFAULT workflow for multi-issue work.
 
 **Phase 1: Investigation**
+0. Ensure `project-config.md` is current (inline — see Project Detection).
 1. Create team with descriptive name.
 2. One investigation task per issue + synthesis task assigned to architect.
 3. Group related issues under shared analysts.
@@ -203,6 +213,7 @@ Same as Multi-Issue Resolution, preceded by running the relevant analysis tool t
 ### Pure Investigation
 **Trigger**: Codebase question, analysis, impact assessment, architectural review with no implementation implied.
 
+0. Ensure `project-config.md` is current (inline — see Project Detection).
 1. Investigation Team: architect + code-analyst/data-analyst agents as needed.
 2. Agents investigate, write findings to disk, message architect.
 3. Architect synthesizes into structured report with file:line references.
