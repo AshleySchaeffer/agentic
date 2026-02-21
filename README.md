@@ -1,4 +1,4 @@
-# agentic
+# Agentic
 
 Agentic workflow system for [Claude Code](https://docs.anthropic.com/en/docs/claude-code). Provides
 a structured multi-agent orchestration framework — architect, dev, QA, analyst, challenger, and
