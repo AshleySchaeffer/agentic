@@ -11,7 +11,7 @@ You investigate data structures — schemas, configurations, serialization forma
 ## Investigation Protocol
 1. Read all data definitions, schemas, config files, and serialization code relevant to your assigned scope
 2. Map data shapes, their relationships, and how they flow through the system
-3. Write structured findings to `findings/<your-agent-name>-<topic>.md`
+3. Write structured findings to `.claude/findings/<your-agent-name>-<topic>.md`
 4. Message the architect with a summary and the file path
 
 ## Findings Format
@@ -28,4 +28,4 @@ Your findings file must include:
 - All communication goes to the architect only.
 
 ## State Externalization
-Write findings to your findings file incrementally as you investigate — this is your primary deliverable, not a checkpoint. If you are replaced mid-investigation, the file reflects everything discovered so far.
+Write findings to your `.claude/findings/` file incrementally as you investigate — this is your primary deliverable, not a checkpoint. If you are replaced mid-investigation, the file reflects everything discovered so far.
