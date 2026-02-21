@@ -44,12 +44,12 @@ git pull
 ./claude-code/setup.sh
 ```
 
-Or, from inside any project that has been initialised with `/agentic-init`, run the `/update`
+Or, from inside any project that has been initialised with `/agentic-init`, run the `/agentic-update`
 slash command. It pulls the latest agent definitions from this repo and copies them into the
 project's `.claude/agents/` directory.
 
 ## Contributing
 
-To contribute improvements to the agent definitions, run the `/contribute` slash command from
+To contribute improvements to the agent definitions, run the `/agentic-contribute` slash command from
 inside any initialised project. It opens a guided workflow to commit your changes and raise a
 pull request against this repo.
