@@ -31,14 +31,27 @@ Restart Claude Code after running `/agentic-setup`.
 
 ## Per-project setup
 
-Inside any project directory, run `/agentic-init`. This copies the agent definitions from
-`~/.claude/agents/` into the project's `.claude/agents/` directory and creates a `CLAUDE.md`
-template.
+Inside any project directory, run `/agentic-init`. It fetches the branch list from your `agentic`
+GitHub repo and, if more than one branch exists, presents an interactive picker. The selected branch
+is pinned to `.claude/agentic-branch`. Agent definitions are then installed into `.claude/agents/`
+and a `CLAUDE.md` template is created if one does not already exist.
+
+Branch behaviour:
+
+- **Default branch** — updates `~/.claude/agents/` globally, then copies from there into the project
+- **Any other branch** — clones that branch directly into `.claude/agents/`; globals are not touched
+
+Re-run `/agentic-init` at any time to switch branches. The picker highlights the currently pinned
+branch so you can see what is active and change it if needed.
 
 ## Keeping up to date
 
-Run `/agentic-setup` to pull the latest agent definitions from GitHub and update `~/.claude/agents/`.
-Then run `/agentic-update` in any project to sync its local `.claude/agents/` from the updated globals.
+Run `/agentic-update` in any project to pull the latest agent definitions. It reads the pinned branch
+from `.claude/agentic-branch` (defaulting to the repo's default branch if no pin exists) and updates
+`.claude/agents/` accordingly. On the default branch it also refreshes `~/.claude/agents/` first.
+
+To update the global slash commands themselves, re-run `./claude-code/setup.sh` from the agentic repo
+and then run `/agentic-setup` to refresh the global agent definitions and orchestration rules.
 
 ## Contributing
 
