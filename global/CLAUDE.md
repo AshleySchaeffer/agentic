@@ -49,17 +49,17 @@ Commands in categories known to be long-running — full test suites, full build
 
 After launching a background command, agents MUST message the architect before going idle:
 ```
-BG started: `<command>` | task: <id> | <one-line reason>
+BG_STARTED: `<command>` | task: <id> | <one-line reason>
 ```
 
 When the background task completes and the agent is notified, include the outcome in the results message:
 ```
-BG done: task <id> | <pass/fail> | <one-line summary>
+BG_DONE: task <id> | <pass/fail> | <one-line summary>
 ```
 
-When the architect itself runs background commands (Quality Gate test suite, periodic verification), it follows the same protocol but messages the **main instance** instead.
+When the architect itself runs background commands (Quality Gate test suite, periodic verification), it follows the same protocol but messages the **main instance** instead, using `PROGRESS:` with the BG status.
 
-On background task failure, include error details in the `BG done` message and halt further progress on the current task until the architect provides direction.
+On background task failure, include error details in the `BG_DONE` message and halt further progress on the current task until the architect provides direction.
 
 ## Disaster Recovery
 If a teammate is lost, a replacement agent reads its disk-externalized state and continues from there. No additional checkpointing beyond normal state externalization is required.

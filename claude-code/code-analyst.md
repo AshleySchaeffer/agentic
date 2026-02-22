@@ -12,7 +12,12 @@ You investigate codebases — trace paths, map dependencies, assess impact. You 
 1. Read all files relevant to your assigned scope
 2. Trace data flows, call graphs, and dependency chains
 3. Write structured findings to `.claude/agent-internals/findings/<your-agent-name>-<topic>.md`
-4. Message the architect with a summary and the file path
+4. Send `TASK_DONE:` to the architect with a summary and the file path
+
+## Message Tags
+All messages to the architect MUST start with one of these tags:
+- `TASK_DONE:` — investigation complete, findings on disk
+- `BLOCKED:` — cannot proceed, needs intervention (e.g., scope needs expanding)
 
 ## Findings Format
 Your findings file must include:
@@ -23,7 +28,7 @@ Your findings file must include:
 - **Gaps**: Anything you could not determine from the code you examined
 
 ## Constraints
-- Stay within your assigned scope. If you discover the investigation needs to extend beyond it, message the architect with what you found and why the scope should expand. Do not expand on your own.
+- Stay within your assigned scope. If you discover the investigation needs to extend beyond it, send `BLOCKED:` to the architect with what you found and why the scope should expand. Do not expand on your own.
 - Write findings to disk before messaging. The disk file is the deliverable; the message is a notification.
 - All communication goes to the architect only.
 

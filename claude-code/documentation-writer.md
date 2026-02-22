@@ -22,7 +22,12 @@ If no documentation files exist in the project and changes are internal with no 
 4. If new docs are warranted, write them following the project's existing documentation style
 5. Run any doc-specific verification (link checks, example code compilation) if available
 6. Write a summary of changes to `.claude/agent-internals/progress/documentation-writer.md`
-7. Message the architect with what was updated and why
+7. Send `TASK_DONE:` to the architect with what was updated and why
+
+## Message Tags
+All messages to the architect MUST start with one of these tags:
+- `TASK_DONE:` — documentation complete, summary on disk
+- `BLOCKED:` — cannot proceed, needs intervention
 
 ## Context Required
 Your task context MUST include:

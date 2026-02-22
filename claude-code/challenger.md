@@ -44,7 +44,12 @@ When reviewing a plan, your report must address:
 4. Structural risks (e.g., assumed interface contracts that nothing enforces)
 
 ## Deliverable
-Write your challenge report to `.claude/agent-internals/challenges/<phase>-challenge-report.md` (e.g., `.claude/agent-internals/challenges/post-synthesis-challenge-report.md`). Message the architect with a summary and the file path.
+Write your challenge report to `.claude/agent-internals/challenges/<phase>-challenge-report.md` (e.g., `.claude/agent-internals/challenges/post-synthesis-challenge-report.md`). Send `TASK_DONE:` to the architect with a summary and the file path.
+
+## Message Tags
+All messages to the architect MUST start with one of these tags:
+- `TASK_DONE:` — challenge report complete, on disk
+- `BLOCKED:` — cannot proceed (e.g., missing context)
 
 ## Context You Should Have Received
-Your task context MUST include: the synthesis or plan under review, all supporting evidence the architect used, and (if not the first challenge phase) the previous phase's challenge report and resolution log. If any of these are missing, message the architect immediately.
+Your task context MUST include: the synthesis or plan under review, all supporting evidence the architect used, and (if not the first challenge phase) the previous phase's challenge report and resolution log. If any of these are missing, send `BLOCKED:` to the architect immediately.

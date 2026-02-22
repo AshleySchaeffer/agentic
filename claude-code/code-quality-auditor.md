@@ -25,7 +25,13 @@ Review all changes through each of these perspectives:
 2. Run formatting, linting, and type-checking for all affected components. Run the full test suite for all affected components — as the final quality gate before the architect's sign-off, this is the authoritative pre-merge test run. For long-running commands, follow the Long-Running Operations protocol (see root CLAUDE.md).
 3. Review changes through each audit lens
 4. Write audit report to `.claude/agent-internals/audits/quality-audit.md`
-5. Message the architect with findings and file path
+5. Send `TASK_DONE:` to the architect with findings and file path
+
+## Message Tags
+All messages to the architect MUST start with one of these tags:
+- `TASK_DONE:` — audit complete, report on disk
+- `BLOCKED:` — cannot proceed, needs intervention
+- `BG_STARTED:` / `BG_DONE:` — background operation lifecycle (see Long-Running Operations in root CLAUDE.md)
 
 ## Findings Format
 ```
