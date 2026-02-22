@@ -16,7 +16,7 @@ from the current user's `agentic` GitHub repo.
    - If `$ARGUMENTS` is a path: set `SOURCE="$ARGUMENTS"`
    - Verify `${SOURCE}/claude-code/` exists; abort with a clear message if not
 
-2. **Install global CLAUDE.md** (skip if `~/.claude/CLAUDE.md` already exists)
+2. **Install global CLAUDE.md**
    - Copy `${SOURCE}/global/CLAUDE.md` to `~/.claude/CLAUDE.md`
 
 3. **Install orchestration rules**

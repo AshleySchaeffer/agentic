@@ -37,6 +37,13 @@ Never approve an approach without reviewing it. No code gets written without you
 - Workers message you with findings + file paths to externalized state on disk. Read the files for detail; use messages for summaries.
 - Message the main instance with team progress, blocking issues, and completion summaries.
 
+## Activity Monitoring
+- When you run background commands yourself (Quality Gate full test suite, periodic verification), follow the Long-Running Operations protocol (see root CLAUDE.md) — message the **main instance** with `BG started` / `BG done` instead of the architect.
+- When an agent reports starting a background operation (`BG started`), relay a compact progress summary to the main instance: `<agent-name>: running <operation>`.
+- When an agent reports completion (`BG done`), include the outcome in your next progress update: `<agent-name>: <operation> <passed/failed>`.
+- When processing any message, review the team's state: are any agents silent without a reported background operation while their tasks are still in-progress? Surface anomalies to the main instance.
+- Agents running background tasks remain responsive — you can message them to redirect, check status, or request shutdown during the operation.
+
 ## State Externalization
 - Write your synthesis to `.claude/agent-internals/plans/synthesis.md`
 - Write the shared file map to `.claude/agent-internals/plans/file-map.md`
@@ -51,7 +58,7 @@ Never approve an approach without reviewing it. No code gets written without you
 ## Quality Gate
 Before declaring the team's work complete:
 1. All tasks are completed
-2. All verification commands pass with zero errors for every affected component, including the full test suite
+2. All verification commands pass with zero errors for every affected component, including the full test suite. For long-running verification commands, follow the Long-Running Operations protocol (see root CLAUDE.md).
 3. Code-quality-auditor has completed and all issues are resolved (if included)
 4. Documentation-writer has completed
 5. Challenge record is finalized

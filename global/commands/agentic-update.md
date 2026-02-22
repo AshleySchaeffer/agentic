@@ -6,8 +6,6 @@ Defaults to the repo's default branch if no pin file exists.
 - **main/master (default) branch**: updates `~/.claude/agents/` globally, then copies to `.claude/agents/`
 - **any other branch**: clones that branch and updates `.claude/agents/` directly; globals are not touched
 
-`CLAUDE.md` is never overwritten — only agent definition files are updated.
-
 $ARGUMENTS may contain a local filesystem path to the agentic repo. If provided, that
 checkout is used as-is and the branch pin is ignored.
 
@@ -29,12 +27,16 @@ checkout is used as-is and the branch pin is ignored.
 
 3. **Update agent definitions**
    - If BRANCH equals DEFAULT (or `$ARGUMENTS` was given):
-     - Update global: copy from `${SOURCE}/claude-code/` to `~/.claude/agents/`, overwriting existing files
-     - Update project: copy from `~/.claude/agents/` to `.claude/agents/`, overwriting existing files
+     - Update global agents: copy from `${SOURCE}/claude-code/` to `~/.claude/agents/`, overwriting existing files
+     - Update global orchestration: copy `${SOURCE}/claude-code/orchestration-rules.md` to `~/.claude/orchestration-rules.md`
+     - Update global CLAUDE.md: copy `${SOURCE}/global/CLAUDE.md` to `~/.claude/CLAUDE.md`
+     - Update project agents: copy from `~/.claude/agents/` to `.claude/agents/`, overwriting existing files
+     - Update project orchestration: copy `~/.claude/orchestration-rules.md` to `.claude/orchestration-rules.md`
    - If BRANCH does not equal DEFAULT:
-     - Update project only: copy from `${SOURCE}/claude-code/` to `.claude/agents/`, overwriting existing files
-     - Do not modify `~/.claude/agents/`
-   - Files to copy: `architect.md`, `challenger.md`, `code-analyst.md`, `code-quality-auditor.md`,
+     - Update project agents: copy from `${SOURCE}/claude-code/` to `.claude/agents/`, overwriting existing files
+     - Update project orchestration: copy `${SOURCE}/claude-code/orchestration-rules.md` to `.claude/orchestration-rules.md`
+     - Do not modify `~/.claude/`
+   - Agent files to copy: `architect.md`, `challenger.md`, `code-analyst.md`, `code-quality-auditor.md`,
      `data-analyst.md`, `dev.md`, `documentation-writer.md`, `qa.md`
 
 4. **Clean up** the temp clone directory if one was created

@@ -105,6 +105,18 @@ The documentation-writer must not run concurrently with the auditor, as auditor-
 - Clean shutdown: after all work completes, shut down all teammates, clean up team state, delete `.claude/agent-internals/` entirely, and kill all `claude-swarm*` tmux sessions. No residual agent files or tmux sessions may remain. Stale team state blocks creation of new teams — cleanup is mandatory, not optional.
 - The main instance relays and summarizes agent findings to the user. The architect performs technical synthesis. These are distinct roles.
 
+### Progress Visibility
+- The architect relays agent activity milestones (background operation started, operation completed, blocking issues) to the main instance as they occur.
+- The main instance relays these progress updates to the user. The user should always have visibility into what the team is currently doing.
+- When the architect reports an agent running a long operation, the main instance informs the user with the agent name and operation.
+
+### Fallback Cleanup
+If the architect is lost (crash notification received, or team terminates abnormally), the main instance performs emergency cleanup:
+1. Send shutdown requests to all remaining teammates
+2. Kill all `claude-swarm*` tmux sessions
+3. Delete `.claude/agent-internals/` if it exists
+4. Report the failure to the user with what was in progress at the time
+
 ### Mid-Task Changes
 If the user changes or cancels the current task mid-team:
 1. Broadcast stop via architect
