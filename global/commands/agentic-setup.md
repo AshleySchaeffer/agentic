@@ -1,7 +1,9 @@
-Set up the agentic workflow globally for Claude Code.
+Set up the agentic workflow globally for Claude Code. This is a single-use command — it
+removes itself after execution.
 
 Installs agent definitions, orchestration rules, and global CLAUDE.md into `~/.claude/`,
-and ensures Claude team mode is enabled in `~/.claude/settings.json`.
+configures pipeline permissions and team mode in `~/.claude/settings.json`, then deletes
+its own command file.
 
 $ARGUMENTS may contain a local filesystem path to the agentic repo. If empty, clones
 from the current user's `agentic` GitHub repo.
@@ -33,6 +35,9 @@ from the current user's `agentic` GitHub repo.
    - Ensure `env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` is set to `"1"`
    - Write the updated settings back to `~/.claude/settings.json`
 
-6. **Clean up** the temp clone directory if one was created
+6. **Remove setup command**
+   - Delete `~/.claude/commands/agentic-setup.md`
 
-7. **Report** each action taken and remind the user to restart Claude Code for changes to take effect
+7. **Clean up** the temp clone directory if one was created
+
+8. **Report** each action taken. Inform the user that `/agentic-setup` has been removed — to re-run setup, execute `setup.sh` from the agentic repo first. Remind the user to restart Claude Code for changes to take effect.
