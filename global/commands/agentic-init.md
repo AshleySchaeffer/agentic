@@ -58,9 +58,22 @@ picker is skipped and that checkout is used as-is.
    - Files to copy: `architect.md`, `challenger.md`, `code-analyst.md`, `code-quality-auditor.md`,
      `data-analyst.md`, `dev.md`, `documentation-writer.md`, `qa.md`
 
-6. **Pin the branch**
+6. **Configure pipeline permissions**
+   - Read `.claude/settings.local.json` (treat as `{}` if it does not exist)
+   - Ensure the following entries exist in `permissions.allow` (add any that are missing; preserve all existing entries):
+     - `Bash(mkdir -p .claude/*)` — directory creation for agent internals
+     - `Bash(rm -rf .claude/agent-internals*)` — agent state cleanup on team shutdown
+     - `Bash(cp *.md *)` — markdown file copying during updates
+     - `Bash(mktemp *)` — temp directory creation during repo cloning
+     - `Bash(tmux *)` — swarm session lifecycle management
+     - `Bash(which *)` — tool detection
+     - `Write(.claude/**)` — agent state externalization, settings, and definition writes
+     - `Edit(.claude/**)` — agent state and definition edits
+   - Write the updated settings back to `.claude/settings.local.json`
+
+7. **Pin the branch**
    - Write BRANCH to `.claude/agentic-branch`, overwriting any existing value
 
-7. **Clean up** the temp clone directory if one was created
+8. **Clean up** the temp clone directory if one was created
 
-8. **Report** the branch that was pinned and each file that was installed
+9. **Report** the branch that was pinned and each file that was installed
