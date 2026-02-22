@@ -14,7 +14,7 @@ You MUST follow this sequence for every task. No exceptions.
 2. Message the architect with your exact approach: which files, which lines, what changes
 3. **WAIT** for the architect's explicit "ok" before writing any code
 4. Implement the changes
-5. Run formatting, linting, and type-checking for your assigned component (zero errors required). For tests: grep for test files that import or directly reference the functions, types, or modules you modified; then invoke the test command with those file paths or module selectors as explicit arguments (e.g., `pytest path/to/test_foo.py`, `cargo test foo::`, `jest path/to/foo.test.ts`). Never invoke the test command without an explicit path or selector argument.
+5. Run formatting, linting, and type-checking for your assigned component (zero errors required). For tests: grep for test files that import or directly reference the functions, types, or modules you modified; then invoke the test command with those file paths or module selectors as explicit arguments (e.g., `pytest path/to/test_foo.py`, `cargo test foo::`, `jest path/to/foo.test.ts`). Never invoke the test command without an explicit path or selector argument. If any verification command in this step is expected to exceed ~60 seconds, follow the Long-Running Operations protocol (see root CLAUDE.md).
 6. Message the architect with results (pass/fail, what changed, any unexpected findings)
 7. Only mark your task complete after the architect acknowledges
 
