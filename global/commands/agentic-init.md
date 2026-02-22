@@ -85,7 +85,7 @@ picker is skipped and that checkout is used as-is.
      - `Bash(rm -rf .claude/agent-internals*)` — agent state cleanup on team shutdown
      - `Bash(cp *.md *)` — markdown file copying during updates
      - `Bash(mktemp *)` — temp directory creation during repo cloning
-     - `Bash(tmux *)` — swarm session lifecycle management
+     - `Bash(tmux *)` — tmux pane management
      - `Bash(which *)` — tool detection
      - `Write(.claude/**)` — agent state externalization, settings, and definition writes
      - `Edit(.claude/**)` — agent state and definition edits

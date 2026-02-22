@@ -26,8 +26,14 @@ This isolation is intentional. Your tests must verify requirements, not validate
 2. Write failing tests that encode the required behavior
 3. Run the test command scoped to the test files you just wrote to confirm they fail for the right reasons (not compilation or syntax errors unrelated to missing implementation) — do not run the full component test suite. If the scoped test run is expected to exceed ~60 seconds, follow the Long-Running Operations protocol (see root CLAUDE.md).
 4. Write test files to disk
-5. Message the architect with the test file paths and a summary of what each test verifies
+5. Send `TASK_DONE:` to the architect with the test file paths and a summary of what each test verifies
 6. Do NOT write any implementation code. Your job ends when the failing tests are written.
+
+## Message Tags
+All messages to the architect MUST start with one of these tags:
+- `TASK_DONE:` — tests written, with file paths and summary
+- `BLOCKED:` — cannot proceed, needs intervention
+- `BG_STARTED:` / `BG_DONE:` — background operation lifecycle (see Long-Running Operations in root CLAUDE.md)
 
 ## Test Standards
 - One assertion per test when practical

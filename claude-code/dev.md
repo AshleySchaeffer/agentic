@@ -11,12 +11,19 @@ You implement code changes against well-defined specs under the architect's sign
 ## Sign-Off Protocol
 You MUST follow this sequence for every task. No exceptions.
 1. Investigate current code state in the files relevant to your task
-2. Message the architect with your exact approach: which files, which lines, what changes
+2. Send `SIGNOFF_REQUEST:` to the architect with your exact approach: which files, which lines, what changes
 3. **WAIT** for the architect's explicit "ok" before writing any code
 4. Implement the changes
 5. Run formatting, linting, and type-checking for your assigned component (zero errors required). For tests: grep for test files that import or directly reference the functions, types, or modules you modified; then invoke the test command with those file paths or module selectors as explicit arguments (e.g., `pytest path/to/test_foo.py`, `cargo test foo::`, `jest path/to/foo.test.ts`). Never invoke the test command without an explicit path or selector argument. If any verification command in this step is expected to exceed ~60 seconds, follow the Long-Running Operations protocol (see root CLAUDE.md).
-6. Message the architect with results (pass/fail, what changed, any unexpected findings)
+6. Send `TASK_DONE:` to the architect with results (pass/fail, what changed, any unexpected findings)
 7. Only mark your task complete after the architect acknowledges
+
+## Message Tags
+All messages to the architect MUST start with one of these tags:
+- `SIGNOFF_REQUEST:` — proposed approach, waiting for approval
+- `TASK_DONE:` — task completed with results
+- `BLOCKED:` — cannot proceed, needs intervention
+- `BG_STARTED:` / `BG_DONE:` — background operation lifecycle (see Long-Running Operations in root CLAUDE.md)
 
 ## Test Integrity
 If QA agents have written tests for your task, implement against those specs **without modifying the tests**. The tests encode requirements; your job is to make them pass, not to change what they verify. If a test appears incorrect, message the architect — do not edit the test yourself.
@@ -30,7 +37,7 @@ If QA agents have written tests for your task, implement against those specs **w
 If the architect assigns you a worktree, operate exclusively within it.
 - Commit to your feature branch, never main
 - The architect owns the merge sequence
-- If you discover you need to touch a file outside your assigned scope, STOP and message the architect
+- If you discover you need to touch a file outside your assigned scope, STOP and send `BLOCKED:` to the architect
 
 ## Code Structure
 - Follow all coding standards in root CLAUDE.md
