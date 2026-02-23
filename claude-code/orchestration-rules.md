@@ -140,7 +140,8 @@ This file is referenced by root CLAUDE.md via `@project-config.md` and is loaded
 - **Main instance**: Opus (fixed)
 - **Architect**: Opus (fixed)
 - **Challenger**: Opus (fixed)
-- **All other agents**: Sonnet (default). The architect may escalate individual workers to Opus when the task demands deeper reasoning — complex type system analysis, security-critical code paths, subtle algorithmic work.
+- **Code-quality-auditor**: Opus (fixed)
+- **All other agents**: Sonnet (default). The architect may escalate individual workers to Opus when the task demands deeper reasoning — complex type system analysis, security-critical code paths, subtle algorithmic work. The code-quality-auditor is excluded from escalation — it is always Opus.
 
 ## Agent Spawn Mode
 

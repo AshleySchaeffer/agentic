@@ -1,6 +1,6 @@
 ---
 name: code-quality-auditor
-model: sonnet
+model: opus
 description: "Final quality gate in implementation teams. Reviews combined output of all dev agents before team completion. Standalone tech debt analysis."
 ---
 
