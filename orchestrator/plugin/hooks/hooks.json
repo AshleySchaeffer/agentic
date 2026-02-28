@@ -1,0 +1,68 @@
+{
+  "description": "Agent team orchestrator — reliable message delivery, task tracking, automation, and real-time TUI visibility.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          { "type": "command", "command": "orchestrator hook", "timeout": 5 }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "SendMessage",
+        "hooks": [
+          { "type": "command", "command": "orchestrator hook", "timeout": 5 }
+        ]
+      },
+      {
+        "matcher": "TaskUpdate",
+        "hooks": [
+          { "type": "command", "command": "orchestrator hook", "timeout": 5 }
+        ]
+      },
+      {
+        "matcher": "TaskGet|TaskList",
+        "hooks": [
+          { "type": "command", "command": "orchestrator hook", "timeout": 5 }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          { "type": "command", "command": "orchestrator hook", "timeout": 10, "async": true }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          { "type": "command", "command": "orchestrator hook", "timeout": 10, "async": true }
+        ]
+      }
+    ],
+    "TaskCompleted": [
+      {
+        "hooks": [
+          { "type": "command", "command": "orchestrator hook", "timeout": 10, "async": true }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          { "type": "command", "command": "orchestrator hook", "timeout": 10, "async": true }
+        ]
+      }
+    ],
+    "TeammateIdle": [
+      {
+        "hooks": [
+          { "type": "command", "command": "orchestrator hook", "timeout": 10, "async": true }
+        ]
+      }
+    ]
+  }
+}
