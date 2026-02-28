@@ -1,0 +1,6 @@
+{
+  "name": "orchestrator",
+  "version": "0.1.0",
+  "description": "Agent team orchestrator — reliable message delivery, task tracking, automation, and real-time TUI visibility for Claude Code agent teams.",
+  "entrypoint": "hooks/hooks.json"
+}
