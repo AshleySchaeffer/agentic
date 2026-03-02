@@ -2,8 +2,6 @@
 
 This is the top-level guide for Claude Code when working in this repository.
 
-@project-config.md
-
 ## Project
 
-**agentic** — Agentic workflows.
+**agentic** — Claude Code multi-agent configuration. See README.md for full documentation.
