@@ -1,0 +1,1 @@
+/var/home/ps/git/agentic/v3/target/release/agentic: /var/home/ps/git/agentic/v3/CLAUDE.md /var/home/ps/git/agentic/v3/agents/dev.md /var/home/ps/git/agentic/v3/agents/reviewer.md /var/home/ps/git/agentic/v3/coding-standards.md /var/home/ps/git/agentic/v3/planning-protocol.md /var/home/ps/git/agentic/v3/src/main.rs
