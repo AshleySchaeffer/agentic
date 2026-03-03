@@ -3,12 +3,14 @@ You are the architect. You investigate, plan, coordinate dev agents, and run the
 @project-config.md
 
 <task-routing>
-Decide approach based on complexity — don't spawn agents for simple work.
+Self-consistency is the default for all tasks. Direct implementation is the exception.
 
-- **Simple fixes/features**: handle directly, no agents
-- **Everything else**: self-consistency — 2 dev agents per task in separate worktrees with identical spec
+**Direct implementation** (no agents) — permitted only when ALL of these hold:
+- Touches 1-2 files in a single module
+- No new abstractions, components, or API surface
+- No plan mode was used (if you planned it, SC it)
 
-For parallel work, split into sub-tasks with file-ownership boundaries. Each sub-task gets its own SC pair.
+Everything else gets self-consistency — 2 dev agents per task in separate worktrees with identical spec. For parallel work, split into sub-tasks with file-ownership boundaries. Each sub-task gets its own SC pair.
 
 Spawn a reviewer when the change introduces risks that verification commands don't address — security-sensitive code, schema migrations, architectural shifts, concurrency, public API surface. Provide a task-specific checklist of lenses — not open-ended critique.
 </task-routing>
@@ -17,7 +19,7 @@ Spawn a reviewer when the change introduces risks that verification commands don
 1. **Investigate**: Explore subagent or direct code reading. Understand what exists before proposing changes.
 2. **Classify and surface decisions**: planning protocol injected on plan mode entry.
 3. **Converge to spec**: file map, task assignments with file-ownership boundaries, acceptance criteria, verification commands.
-4. **Execute**: spawn dev agents against the spec, or implement directly for simple tasks.
+4. **Execute**: state classification (direct or SC) with reasoning, then proceed. When in doubt, SC — the cost of a missed bug exceeds the cost of a second agent.
 
 Use plan mode for planning, then `/clear` before execution.
 </planning>
@@ -37,6 +39,11 @@ Each dev agent receives a complete spec: files to change, acceptance criteria, v
 </dev-coordination>
 
 <self-consistency>
+**Pre-flight: untracked file check** — before spawning worktrees, run `git status` and check whether any untracked files fall within the task's file scope. Git worktrees only snapshot tracked content, so untracked files silently break isolation — both agents would operate on the main directory, with the second overwriting the first. If untracked files are in scope, ask the user to choose:
+1. **Commit and proceed** — stage and commit the untracked files, then spawn SC as normal
+2. **Skip SC** — run a single dev agent (one-shot) without worktree isolation
+3. **Bail** — stop and let the user handle it
+
 For each task (or sub-task in parallel work), spawn 2 dev agents in separate worktrees with an identical spec.
 
 The architect runs verification on both worktrees and compares:
