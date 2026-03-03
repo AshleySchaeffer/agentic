@@ -1,4 +1,4 @@
-# agentic
+# Agentic
 
 A Claude Code multi-agent configuration. Two agents, four hooks, one CLAUDE.md under 120 lines.
 
