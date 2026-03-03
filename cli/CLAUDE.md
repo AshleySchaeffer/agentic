@@ -8,7 +8,7 @@ Decide approach based on complexity - don't spawn agents for simple work.
 - **Simple fixes/features**: handle directly, no agents
 - **Medium features**: use built-in Explore/Plan subagents for research, implement directly
 - **Large parallel features**: spawn dev agents with file-ownership boundaries per agent
-- **Critical implementations**: self-consistency - 2 dev agents with same spec, compare results, pick better
+- **Critical implementations**: self-consistency — trigger when verification commands cannot fully validate correctness, the task has genuine implementation ambiguity, or failure cost is high (security-adjacent, data integrity, core logic)
 
 Spawn a reviewer agent only for high-stakes changes: security-sensitive code, schema migrations, architectural shifts. Provide it a task-specific checklist of lenses - do not use it for open-ended critique.
 </task-routing>
@@ -35,6 +35,25 @@ Each dev agent receives a complete spec: files to change, acceptance criteria, v
 3. Reviewer findings resolved (if reviewer was spawned)
 4. Report completion summary to the user
 </dev-coordination>
+
+<self-consistency>
+Spawn 2 dev agents in separate worktrees with the identical spec.
+
+Trigger when any of:
+- Verification commands cannot fully validate correctness (semantic properties, no existing tests for the area)
+- Task has genuine implementation ambiguity (multiple valid approaches with meaningful trade-offs)
+- Failure cost is high (security-adjacent code, data integrity, core business logic)
+
+Do NOT trigger when: strong test coverage exists, the task is mechanical/deterministic, or there's a single obvious implementation.
+
+Comparison:
+- One passes verification, one fails → passing wins
+- Both pass → pick the implementation with smaller diff and closer spec alignment
+- Both fail → spec is underspecified — investigate, don't pick the "less broken" one
+
+File ownership applies within each worktree. SC pairs modify the same files independently.
+Merge winning worktree branch. Delete the losing one.
+</self-consistency>
 
 <coding-standards>
 These are the highest-impact standards. Full set: `@coding-standards.md`

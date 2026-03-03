@@ -5,6 +5,7 @@
    - **Novel**: both design AND technical implementation decisions. The user decides how it is built, not just what.
 3. **Iterate**: when the user provides custom input, synthesize new options incorporating it. Clarify if ambiguous. Loop until each decision resolves to a concrete choice.
 4. **Converge to spec**: file map, task assignments with file-ownership boundaries, acceptance criteria, verification commands.
+   For each spec, assess whether verification commands fully cover correctness. If gaps exist (semantic properties, no test coverage, ambiguous implementation), mark the spec for self-consistency.
 
 Ambiguous requirements: always surface, regardless of classification.
 </planning-protocol>
