@@ -1,6 +1,6 @@
 # Agentic
 
-A Claude Code multi-agent configuration. Two agents, four hooks, one CLAUDE.md under 120 lines.
+A Claude Code multi-agent configuration. Two agents, five hooks, one CLAUDE.md under 120 lines.
 
 ## Why
 
@@ -27,9 +27,10 @@ Installs to `~/.claude/`:
 | coding-standards.md | `~/.claude/coding-standards.md` | Full standards (progressive disclosure from CLAUDE.md) |
 | dev agent | `~/.claude/agents/dev.md` | Sonnet — implements against complete specs |
 | reviewer agent | `~/.claude/agents/reviewer.md` | Opus — focused review with task-specific checklist |
-| hooks binary | `~/.local/bin/agentic` | 4 hooks compiled to a single binary |
+| hooks binary | `~/.local/bin/agentic` | 5 hooks compiled to a single binary |
 | settings.json | `~/.claude/settings.json` | Hook matchers + agent teams flag |
 
+To refresh project config: `agentic refresh`
 To uninstall: `agentic uninstall`
 
 ## Architecture
@@ -66,8 +67,9 @@ Agents are task-oriented, not role-bound. A dev receives a scoped task (files, c
 |---|---|---|
 | 1 | PreToolUse/SendMessage | Offloads large messages (>4KB, >2KB with code) to disk, replaces with file reference |
 | 2 | PreToolUse/Agent | Forces `acceptEdits` mode on all agent spawns |
-| 3 | PostToolUse/Bash | Injects "check project-config.md" reminder after git merge/pull |
+| 3 | PostToolUse/Bash | Re-injects project-config.md content after git commit/merge/pull, verifies @reference |
 | 4 | PreToolUse/EnterPlanMode | Injects adaptive planning protocol (pattern-match vs novel classification) |
+| 5 | SessionStart | Ensures `@project-config.md` in project CLAUDE.md, bootstraps project-config.md if missing |
 
 Hooks enforce what prompts cannot guarantee ([real-world verification outperforms LLM-on-LLM review](https://arxiv.org/abs/2311.17371)). Hook 4 is zero-cost — the planning protocol lives in the binary and is injected only when plan mode is entered, keeping CLAUDE.md lean.
 
@@ -91,7 +93,7 @@ architect.md               # Architect protocol → ~/.claude/CLAUDE.md
 coding-standards.md        # Full standards (progressive disclosure)
 planning-protocol.md       # Planning protocol (injected via hook 4)
 Cargo.toml                 # Binary: agentic
-src/main.rs                # 4 hooks + install/uninstall
+src/main.rs                # 5 hooks + install/uninstall/refresh
 agents/
   dev.md                   # Implementation agent (Sonnet)
   reviewer.md              # Review agent (Opus, high-stakes only)
