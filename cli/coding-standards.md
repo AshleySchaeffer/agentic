@@ -4,7 +4,7 @@ Full standards referenced from CLAUDE.md. These apply to all agents and the main
 
 ## Investigation & Analysis
 
-- Fix the **root cause**, not the symptom. Every investigation must trace to the actual underlying cause.
+- Fix the **root cause**, not the symptom.
 - Never introduce indirection (callback chains, nested conditionals, flag-driven branching) when a direct, linear path exists.
 
 ## Code Structure
@@ -14,7 +14,8 @@ Full standards referenced from CLAUDE.md. These apply to all agents and the main
 - Before writing, count the genuinely distinct cases the code must handle. The code should have that many branches - not more.
 - Match the abstraction level, idioms, and conventions of the surrounding code. Don't introduce a novel pattern when the codebase already has a working one.
 - When adding behavior to an existing operation, extend it - add a parameter, a variant, a config key - rather than duplicating the function or class.
-- Don't create abstractions, helpers, or wrapper functions for one-time operations. Three similar lines of code is better than a premature abstraction. Don't add configuration options, extension points, or feature flags for hypothetical future requirements.
+- Don't create abstractions, helpers, or wrapper functions for one-time operations. Three similar lines of code is better than a premature abstraction.
+- Don't add configuration options, extension points, or feature flags for hypothetical future requirements.
 
 ## Naming
 

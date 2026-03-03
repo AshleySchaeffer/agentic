@@ -95,7 +95,7 @@ fn hook_dispatch() {
 
     let handler = match (hook.hook_event_name.as_str(), tool) {
         ("PreToolUse", "SendMessage") => Some("message_transform"),
-        ("PreToolUse", "Agent") => Some("spawn_mode"),
+        ("PreToolUse", "Agent") => Some("agent_accept_edits"),
         ("PreToolUse", "EnterPlanMode") => Some("planning_protocol"),
         ("PostToolUse", "Bash") => Some("post_merge"),
         _ => None,
@@ -113,7 +113,7 @@ fn hook_dispatch() {
 
     match handler {
         Some("message_transform") => message_transform(&hook),
-        Some("spawn_mode") => spawn_mode(&hook),
+        Some("agent_accept_edits") => agent_accept_edits(&hook),
         Some("planning_protocol") => planning_protocol(),
         Some("post_merge") => post_merge(&hook),
         _ => {}
@@ -183,27 +183,18 @@ fn message_transform(hook: &HookInput) {
     serde_json::to_writer(io::stdout(), &output).ok();
 }
 
-/// Hook 2: Agent Spawn Mode Enforcement
-/// Forces all agent spawns to use mode: "acceptEdits".
-fn spawn_mode(hook: &HookInput) {
+/// Hook 2: Agent Accept Edits
+/// Forces acceptEdits permission mode on all agent spawns.
+fn agent_accept_edits(hook: &HookInput) {
     let input = match &hook.tool_input {
         Some(v) => v,
         None => return,
     };
 
-    let current = input
-        .get("mode")
-        .and_then(Value::as_str)
-        .unwrap_or("default");
-    if current == "acceptEdits" {
-        debug!("mode already acceptEdits");
-        return;
-    }
-
-    debug!("mode {current} → acceptEdits");
-
     let mut updated = input.clone();
-    updated["mode"] = Value::String("acceptEdits".into());
+    updated["permissionMode"] = Value::String("acceptEdits".into());
+
+    debug!("forcing acceptEdits on Agent spawn");
 
     let output = serde_json::json!({
         "hookSpecificOutput": {
@@ -229,6 +220,26 @@ fn planning_protocol() {
     serde_json::to_writer(io::stdout(), &output).ok();
 }
 
+/// Returns true if the command string contains a `git merge` or `git pull`
+/// at a command-start position (not inside echo, comments, etc.).
+fn is_merge_command(cmd: &str) -> bool {
+    cmd.lines().any(|line| {
+        let trimmed = line.trim();
+        // Skip comments
+        if trimmed.starts_with('#') {
+            return false;
+        }
+        // Check each command segment (split by && and ;)
+        trimmed
+            .split("&&")
+            .flat_map(|s| s.split(';'))
+            .any(|seg| {
+                let s = seg.trim();
+                s.starts_with("git merge") || s.starts_with("git pull")
+            })
+    })
+}
+
 /// Hook 3: Post-Merge Project Refresh
 /// After a git merge, injects context telling the agent to check project-config.md.
 fn post_merge(hook: &HookInput) {
@@ -239,7 +250,7 @@ fn post_merge(hook: &HookInput) {
         .and_then(Value::as_str)
         .unwrap_or("");
 
-    if !command.contains("git merge") && !command.contains("git pull") {
+    if !is_merge_command(command) {
         debug!("not a merge command");
         return;
     }
@@ -339,19 +350,45 @@ fn install() {
             Value::String("1".into()),
         );
 
-    obj.insert(
-        "hooks".into(),
-        serde_json::json!({
-            "PreToolUse": [
-                { "matcher": "SendMessage", "hooks": [{ "type": "command", "command": "agentic" }] },
-                { "matcher": "Agent", "hooks": [{ "type": "command", "command": "agentic" }] },
-                { "matcher": "EnterPlanMode", "hooks": [{ "type": "command", "command": "agentic" }] }
-            ],
-            "PostToolUse": [
-                { "matcher": "Bash", "hooks": [{ "type": "command", "command": "agentic" }] }
-            ]
-        }),
-    );
+    // Merge agentic hooks into existing config (preserve user hooks)
+    let agentic_hooks: &[(&str, &[&str])] = &[
+        ("PreToolUse", &["SendMessage", "Agent", "EnterPlanMode"]),
+        ("PostToolUse", &["Bash"]),
+    ];
+
+    let hooks_obj = obj
+        .entry("hooks")
+        .or_insert_with(|| serde_json::json!({}))
+        .as_object_mut()
+        .unwrap();
+
+    for (event, matchers) in agentic_hooks {
+        let arr = hooks_obj
+            .entry(*event)
+            .or_insert_with(|| serde_json::json!([]))
+            .as_array_mut()
+            .unwrap();
+
+        for matcher in *matchers {
+            let dominated = arr.iter().any(|entry| {
+                entry.get("matcher").and_then(Value::as_str) == Some(matcher)
+                    && entry
+                        .get("hooks")
+                        .and_then(Value::as_array)
+                        .is_some_and(|h| {
+                            h.iter().any(|hook| {
+                                hook.get("command").and_then(Value::as_str) == Some("agentic")
+                            })
+                        })
+            });
+            if !dominated {
+                arr.push(serde_json::json!({
+                    "matcher": matcher,
+                    "hooks": [{ "type": "command", "command": "agentic" }]
+                }));
+            }
+        }
+    }
 
     fs::write(
         &settings_path,
@@ -403,7 +440,32 @@ fn uninstall() {
         && let Ok(mut settings) = serde_json::from_str::<Value>(&content)
     {
         if let Some(obj) = settings.as_object_mut() {
-            obj.remove("hooks");
+            // Remove only agentic hook entries, preserve user hooks
+            if let Some(hooks_obj) = obj.get_mut("hooks").and_then(Value::as_object_mut) {
+                for arr in hooks_obj.values_mut() {
+                    if let Some(entries) = arr.as_array_mut() {
+                        entries.retain(|entry| {
+                            !entry
+                                .get("hooks")
+                                .and_then(Value::as_array)
+                                .is_some_and(|h| {
+                                    h.iter().any(|hook| {
+                                        hook.get("command").and_then(Value::as_str)
+                                            == Some("agentic")
+                                    })
+                                })
+                        });
+                    }
+                }
+                // Remove empty event arrays
+                hooks_obj.retain(|_, v| {
+                    v.as_array().map_or(true, |a| !a.is_empty())
+                });
+                // Remove hooks object entirely if empty
+                if hooks_obj.is_empty() {
+                    obj.remove("hooks");
+                }
+            }
             if let Some(env_obj) = obj.get_mut("env").and_then(Value::as_object_mut) {
                 env_obj.remove("CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS");
             }
