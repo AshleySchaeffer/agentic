@@ -6,4 +6,4 @@
 .claude/messages/
 
 # Build artifacts
-v3/target/
+**/target/
