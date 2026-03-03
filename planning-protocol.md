@@ -5,7 +5,7 @@
    - **Novel** (new abstraction): both design and technical implementation decisions. The user decides how it is built, not just what.
 3. **Iterate**: when the user selects "Other" or provides free-form input, synthesize new options incorporating it. Clarify if ambiguous. Loop until each decision resolves to a concrete choice.
 4. **Converge to spec**: file map, task assignments with file-ownership boundaries, acceptance criteria, verification commands.
-   For each spec, assess whether verification commands fully cover correctness. If gaps exist (semantic properties, no test coverage, implementation ambiguity), mark the spec for self-consistency.
+   All non-simple specs use self-consistency by default. Verification commands should still be comprehensive — they are the primary quality gate for comparing SC results.
    Verification commands should be comprehensive, not just "run tests." Consider for each spec:
    - Correctness: unit tests (scoped to changed code) + integration tests (cross-module behavior)
    - Robustness: property-based tests where input space is large or invariants matter

@@ -40,7 +40,7 @@ const LEGACY_REFS: &[&str] = &[
     "orchestration-rules.md",
 ];
 
-const GLOBAL_CLAUDE_MD: &str = include_str!("../CLAUDE.md");
+const GLOBAL_CLAUDE_MD: &str = include_str!("../architect.md");
 const CODING_STANDARDS_MD: &str = include_str!("../coding-standards.md");
 const PLANNING_PROTOCOL: &str = include_str!("../planning-protocol.md");
 

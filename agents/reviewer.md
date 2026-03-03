@@ -25,6 +25,7 @@ Common lenses:
 - **Plan Conformance**: Implementation matches the spec - all planned changes present, no unplanned changes
 - **Efficiency**: Unnecessary allocations, redundant operations, algorithmic complexity mismatches, hot-path regressions
 - **Maintainability**: Premature abstractions, unclear control flow, hidden coupling, interface contracts that leak implementation details
+- **Quality**: Code that passes static analysis but is unclear, brittle, poorly structured, or violates project conventions in ways automated tools can't catch
 
 Mechanical concerns (formatting, naming, zero-legacy) are handled by automated tools and the quality gate - do not duplicate that work.
 
@@ -51,6 +52,7 @@ Severity:
 - One review pass — produce your report after automated checks, do not iterate
 - Every finding must be actionable with specific file:line references
 - Vague concerns ("this seems risky") are not valid findings
+- Blocking findings trigger an SC fix round. The reviewer does not review the fix — automated verification is the gate for fix correctness
 
 ## Output Protocol
 

@@ -15,7 +15,7 @@ Multi-agent coding setups fail in predictable ways. Agentic addresses the three 
 ## Setup
 
 ```bash
-cd cli && cargo build --release
+cargo build --release
 ./target/release/agentic install
 ```
 
@@ -41,9 +41,7 @@ The main Claude Code session (Opus) acts as the architect directly — no routin
 | Complexity | Approach |
 |---|---|
 | Simple fixes | Handle directly, no agents |
-| Medium features | Built-in Explore/Plan subagents for research, implement directly |
-| Large parallel work | Spawn dev agents with file-ownership boundaries |
-| Critical implementations | Self-consistency — 2 devs in separate worktrees with same spec; triggers when verification can't fully validate correctness, ambiguity exists, or failure cost is high |
+| Everything else | Self-consistency — 2 devs per task in separate worktrees with same spec; parallel work splits into sub-tasks with file-ownership, each getting its own SC pair |
 
 **Planning** adapts to novelty. On plan mode entry, a hook injects a classification protocol:
 - **Pattern-match** (extending existing code): scope and design decisions only — technical calls made autonomously
@@ -60,7 +58,7 @@ The main Claude Code session (Opus) acts as the architect directly — no routin
 | dev | Sonnet | Implements against complete specs autonomously |
 | reviewer | Opus | Focused review with task-specific checklist (high-stakes only) |
 
-Agents are task-oriented, not role-bound. A dev receives a scoped task (files, criteria, verification commands) and works autonomously. The reviewer is spawned only when stakes warrant it — security-sensitive code, schema migrations, architectural shifts — with a specific checklist of concerns, not open-ended critique.
+Agents are task-oriented, not role-bound. A dev receives a scoped task (files, criteria, verification commands) and works autonomously. The reviewer is spawned when a change introduces risks that verification commands don't address — security-sensitive code, schema migrations, architectural shifts, concurrency, public API surface — with a task-specific checklist of lenses, not open-ended critique.
 
 ## Hooks
 
@@ -77,7 +75,7 @@ Hooks enforce what prompts cannot guarantee ([real-world verification outperform
 
 1. **Main session is the architect** — Opus wasted on routing contradicts the finding that model choice explains most performance variance ([Anthropic 2024](https://www.anthropic.com/research/building-effective-agents))
 2. **Fewer task-oriented agents** — communication overhead is super-linear beyond 3-4 agents; diversity beats headcount ([Kim et al. 2025](https://arxiv.org/abs/2512.08296), [Li et al. 2025](https://arxiv.org/abs/2602.03794))
-3. **Self-consistency over adversarial debate** — MAD frameworks don't reliably beat sampling twice and voting ([ICLR 2025](https://iclr.cc/virtual/2025/poster/31346), [Smit et al. 2024](https://arxiv.org/abs/2311.17371)). SC triggers when verification is insufficient, not universally — strong tests make a single passing implementation reliable
+3. **Self-consistency as default** — MAD frameworks don't reliably beat sampling twice and voting ([ICLR 2025](https://iclr.cc/virtual/2025/poster/31346), [Smit et al. 2024](https://arxiv.org/abs/2311.17371)). SC applies to all non-simple tasks, with automated verification as the primary quality gate. Blocking reviewer findings are fixed through SC (one round) — same confidence guarantee on fixes as on original implementations. Only simple fixes skip SC — they don't justify the overhead
 4. **Upfront specs, no sign-off cycles** — each round-trip compounds super-linear overhead ([Kim et al. 2025](https://arxiv.org/abs/2512.08296))
 5. **Context-isolated TDD** — test-driven development improves code generation by 12.78% on MBPP; context isolation requires task scoping, not a separate agent
 6. **XML directive tags** — structured prompts survive compaction with 92% fidelity vs 71% for prose
@@ -89,13 +87,12 @@ Hooks enforce what prompts cannot guarantee ([real-world verification outperform
 ## Files
 
 ```
-cli/
-  CLAUDE.md                  # Architect protocol → ~/.claude/CLAUDE.md
-  coding-standards.md        # Full standards (progressive disclosure)
-  planning-protocol.md       # Planning protocol (injected via hook 4)
-  Cargo.toml                 # Binary: agentic
-  src/main.rs                # 4 hooks + install/uninstall
-  agents/
-    dev.md                   # Implementation agent (Sonnet)
-    reviewer.md              # Review agent (Opus, high-stakes only)
+architect.md               # Architect protocol → ~/.claude/CLAUDE.md
+coding-standards.md        # Full standards (progressive disclosure)
+planning-protocol.md       # Planning protocol (injected via hook 4)
+Cargo.toml                 # Binary: agentic
+src/main.rs                # 4 hooks + install/uninstall
+agents/
+  dev.md                   # Implementation agent (Sonnet)
+  reviewer.md              # Review agent (Opus, high-stakes only)
 ```
