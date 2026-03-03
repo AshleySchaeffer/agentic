@@ -20,6 +20,7 @@ macro_rules! debug {
 
 const SIZE_THRESHOLD: usize = 4096;
 const CODE_HEAVY_THRESHOLD: usize = 2048;
+const CONFIG_REF: &str = "@project-config.md";
 
 // ── Embedded content ─────────────────────────────────────────────────
 
@@ -59,6 +60,8 @@ enum Command {
     Install,
     /// Remove agentic workflow (agents, hooks, binary)
     Uninstall,
+    /// Refresh or create project-config.md
+    Refresh,
 }
 
 fn main() {
@@ -66,6 +69,7 @@ fn main() {
     match cli.command {
         Some(Command::Install) => install(),
         Some(Command::Uninstall) => uninstall(),
+        Some(Command::Refresh) => refresh(),
         None => hook_dispatch(),
     }
 }
@@ -97,7 +101,8 @@ fn hook_dispatch() {
         ("PreToolUse", "SendMessage") => Some("message_transform"),
         ("PreToolUse", "Agent") => Some("agent_accept_edits"),
         ("PreToolUse", "EnterPlanMode") => Some("planning_protocol"),
-        ("PostToolUse", "Bash") => Some("post_merge"),
+        ("PostToolUse", "Bash") => Some("post_git_write"),
+        ("SessionStart", _) => Some("session_start"),
         _ => None,
     };
 
@@ -115,7 +120,8 @@ fn hook_dispatch() {
         Some("message_transform") => message_transform(&hook),
         Some("agent_accept_edits") => agent_accept_edits(&hook),
         Some("planning_protocol") => planning_protocol(),
-        Some("post_merge") => post_merge(&hook),
+        Some("post_git_write") => post_git_write(&hook),
+        Some("session_start") => session_start(&hook),
         _ => {}
     }
 }
@@ -220,29 +226,25 @@ fn planning_protocol() {
     serde_json::to_writer(io::stdout(), &output).ok();
 }
 
-/// Returns true if the command string contains a `git merge` or `git pull`
-/// at a command-start position (not inside echo, comments, etc.).
-fn is_merge_command(cmd: &str) -> bool {
+fn is_git_write_command(cmd: &str) -> bool {
     cmd.lines().any(|line| {
         let trimmed = line.trim();
-        // Skip comments
         if trimmed.starts_with('#') {
             return false;
         }
-        // Check each command segment (split by && and ;)
         trimmed
             .split("&&")
             .flat_map(|s| s.split(';'))
             .any(|seg| {
                 let s = seg.trim();
-                s.starts_with("git merge") || s.starts_with("git pull")
+                s.starts_with("git merge") || s.starts_with("git pull") || s.starts_with("git commit")
             })
     })
 }
 
-/// Hook 3: Post-Merge Project Refresh
-/// After a git merge, injects context telling the agent to check project-config.md.
-fn post_merge(hook: &HookInput) {
+/// Hook 3: Post-Git-Write Project Refresh
+/// After a git commit/merge/pull, re-injects project-config.md content and verifies @reference.
+fn post_git_write(hook: &HookInput) {
     let command = hook
         .tool_input
         .as_ref()
@@ -250,23 +252,92 @@ fn post_merge(hook: &HookInput) {
         .and_then(Value::as_str)
         .unwrap_or("");
 
-    if !is_merge_command(command) {
-        debug!("not a merge command");
+    if !is_git_write_command(command) {
+        debug!("not a git write command");
         return;
     }
 
-    debug!("merge detected: {command}");
+    debug!("git write detected: {command}");
+
+    let config_path = Path::new(&hook.cwd).join("project-config.md");
+    let config_content = fs::read_to_string(&config_path).unwrap_or_default();
+
+    // Verify @reference is still in project CLAUDE.md
+    ensure_config_ref(&Path::new(&hook.cwd).join("CLAUDE.md"));
+
+    let context = if config_content.is_empty() {
+        "Check if project-config.md needs to be created for this project.".into()
+    } else {
+        format!(
+            "Current project-config.md:\n{config_content}\n\n\
+            Check if this needs updating to reflect the changes just made. \
+            If you update it, stage and commit it separately."
+        )
+    };
 
     let output = serde_json::json!({
         "hookSpecificOutput": {
             "hookEventName": "PostToolUse",
-            "additionalContext": "A merge just landed. Check if project-config.md is still accurate and update it if needed."
+            "additionalContext": context
         }
     });
     serde_json::to_writer(io::stdout(), &output).ok();
 }
 
-// ── Install & Uninstall ──────────────────────────────────────────────
+/// Hook 5: Session Start — Bootstrap
+/// Ensures @project-config.md reference in project CLAUDE.md and bootstraps project-config.md if missing.
+fn session_start(hook: &HookInput) {
+    let cwd = Path::new(&hook.cwd);
+    let claude_md = cwd.join("CLAUDE.md");
+    let config_path = cwd.join("project-config.md");
+
+    // Ensure @project-config.md reference in project CLAUDE.md
+    ensure_config_ref(&claude_md);
+
+    // Bootstrap project-config.md if missing
+    if !config_path.exists() {
+        debug!("project-config.md missing — injecting bootstrap");
+        let output = serde_json::json!({
+            "hookSpecificOutput": {
+                "hookEventName": "SessionStart",
+                "additionalContext": "project-config.md does not exist. Create it before proceeding: \
+                    document the project structure, language/framework, build commands, test commands, \
+                    and verification commands. Keep it concise — this file is loaded into every session \
+                    via @project-config.md in the project CLAUDE.md. \
+                    After creating it, stage and commit it (and CLAUDE.md if modified), \
+                    then tell the user to /clear to reclaim context."
+            }
+        });
+        serde_json::to_writer(io::stdout(), &output).ok();
+    }
+}
+
+fn ensure_config_ref(claude_md: &Path) {
+    let content = fs::read_to_string(claude_md).unwrap_or_default();
+    if content.contains(CONFIG_REF) {
+        return;
+    }
+    debug!("adding @project-config.md to {}", claude_md.display());
+    let new_content = if content.is_empty() {
+        format!("{CONFIG_REF}\n")
+    } else {
+        format!("{CONFIG_REF}\n\n{content}")
+    };
+    let _ = fs::write(claude_md, new_content);
+}
+
+// ── Install, Uninstall & Refresh ────────────────────────────────────
+
+fn refresh() {
+    let cwd = env::current_dir().unwrap_or_default();
+    if cwd.join("project-config.md").exists() {
+        println!("Refresh project-config.md: review and update to reflect current project state. \
+            If changed, stage and commit separately.");
+    } else {
+        println!("Create project-config.md: document project structure, language/framework, \
+            build/test/verification commands. Keep concise. Stage and commit when done.");
+    }
+}
 
 fn home_dir() -> PathBuf {
     PathBuf::from(env::var("HOME").expect("HOME not set"))
@@ -354,6 +425,7 @@ fn install() {
     let agentic_hooks: &[(&str, &[&str])] = &[
         ("PreToolUse", &["SendMessage", "Agent", "EnterPlanMode"]),
         ("PostToolUse", &["Bash"]),
+        ("SessionStart", &["startup"]),
     ];
 
     let hooks_obj = obj
