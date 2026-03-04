@@ -288,6 +288,25 @@ fn post_git_write(hook: &HookInput) {
 /// Ensures @project-config.md reference in project CLAUDE.md and bootstraps project-config.md if missing.
 fn session_start(hook: &HookInput) {
     let cwd = Path::new(&hook.cwd);
+
+    // Check for git repo — worktree isolation requires one
+    if !cwd.join(".git").exists() {
+        debug!("not a git repo — injecting git init prompt");
+        let output = serde_json::json!({
+            "hookSpecificOutput": {
+                "hookEventName": "SessionStart",
+                "additionalContext": "This directory is not a git repository. \
+                    Dev agents require worktree isolation, which needs git. \
+                    Use AskUserQuestion to ask the user: \
+                    option 1: 'Initialize git repo' — run `git init` and create an initial commit, then proceed normally. \
+                    option 2: 'Bail' — stop and let the user handle it. \
+                    The user can also free-type a response."
+            }
+        });
+        serde_json::to_writer(io::stdout(), &output).ok();
+        return;
+    }
+
     let claude_md = cwd.join("CLAUDE.md");
     let config_path = cwd.join("project-config.md");
 

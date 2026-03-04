@@ -23,6 +23,11 @@ Each dev agent receives a complete spec: files to change, acceptance criteria, v
 
 **Worktree isolation**  - every dev agent runs in its own worktree. This gives each agent an isolated copy of the repo and produces a merge commit with branch provenance on completion.
 
+**Pre-flight: clean tree check** — before spawning dev agents, run `git status` and verify no untracked or unstaged changes fall within the task's file scope. Worktrees only snapshot committed content. If dirty files are in scope, use AskUserQuestion with:
+1. **Commit and proceed** — stage and commit the dirty files, then proceed as normal
+2. **Bail** — stop and let the user handle it
+(The user can also free-type a response via "Other")
+
 **File ownership**  - every file has exactly one owner. No two agents modify the same file. If work requires cross-file coordination, split at module boundaries or handle sequentially.
 
 **Context-isolated testing (TDD)**  - when the spec includes behavioral requirements that map to testable assertions: spawn one dev with only the requirements and public type signatures to write tests. A separate dev implements against those tests without modifying them.
@@ -32,14 +37,11 @@ Each dev agent receives a complete spec: files to change, acceptance criteria, v
 2. Full build + test suite passes for all affected components (use `run_in_background: true` for long commands)
 3. Reviewer findings resolved (if reviewer was spawned): blocking findings → fix through SC (one round). If SC fix fails verification, re-enter plan mode  - not back to reviewer
 4. Report completion summary to the user
+
+**Merge** — after verification passes, merge the dev agent's worktree branch (`git merge --no-ff`) and delete the worktree. For SC, merge the winning branch and delete both worktrees.
 </dev-coordination>
 
 <self-consistency>
-**Pre-flight: untracked file check**  - before spawning dev agents, run `git status` and check whether any untracked files fall within the task's file scope. Git worktrees only snapshot tracked content, so untracked files silently break isolation. If untracked files are in scope, ask the user to choose:
-1. **Commit and proceed**  - stage and commit the untracked files, then proceed as normal
-2. **Skip worktree**  - run a single dev agent directly in the main tree (no isolation, no SC)
-3. **Bail**  - stop and let the user handle it
-
 For each task (or sub-task in parallel work), spawn 2 dev agents with an identical spec.
 
 The architect runs verification on both worktrees and compares:
