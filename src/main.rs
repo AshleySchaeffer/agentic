@@ -29,13 +29,20 @@ const AGENTS: &[(&str, &str)] = &[
     ("reviewer.md", include_str!("../agents/reviewer.md")),
 ];
 
-// Files from prior installs; cleaned up on install/uninstall.
-const LEGACY_REFS: &[&str] = &[
+// Agent files from prior installs; cleaned up on install/uninstall.
+const LEGACY_AGENT_FILES: &[&str] = &[
     "analyst.md",
     "architect.md",
     "auditor.md",
     "challenger.md",
     "qa.md",
+    "sign-off-protocol.md",
+    "worker-protocol.md",
+    "orchestration-rules.md",
+];
+
+// Root-level files from prior installs; cleaned up on install/uninstall.
+const LEGACY_ROOT_FILES: &[&str] = &[
     "sign-off-protocol.md",
     "worker-protocol.md",
     "orchestration-rules.md",
@@ -148,32 +155,30 @@ fn hook_dispatch() {
 
     let tool = hook.tool_name.as_deref().unwrap_or("");
 
-    let handler = match (hook.hook_event_name.as_str(), tool) {
-        ("PreToolUse", "SendMessage") => Some("message_transform"),
-        ("PreToolUse", "Agent") => Some("agent_accept_edits"),
-        ("PreToolUse", "EnterPlanMode") => Some("planning_protocol"),
-        ("PostToolUse", "Bash") => Some("post_git_write"),
-        ("SessionStart", _) => Some("session_start"),
-        _ => None,
-    };
-
-    debug!(
-        "{} {}{}",
-        hook.hook_event_name,
-        tool,
-        match handler {
-            Some(h) => format!(" → {h}"),
-            None => " → no-op".into(),
+    match (hook.hook_event_name.as_str(), tool) {
+        ("PreToolUse", "SendMessage") => {
+            debug!("{} {} → message_transform", hook.hook_event_name, tool);
+            message_transform(&hook);
         }
-    );
-
-    match handler {
-        Some("message_transform") => message_transform(&hook),
-        Some("agent_accept_edits") => agent_accept_edits(&hook),
-        Some("planning_protocol") => planning_protocol(),
-        Some("post_git_write") => post_git_write(&hook),
-        Some("session_start") => session_start(&hook),
-        _ => {}
+        ("PreToolUse", "Agent") => {
+            debug!("{} {} → agent_accept_edits", hook.hook_event_name, tool);
+            agent_accept_edits(&hook);
+        }
+        ("PreToolUse", "EnterPlanMode") => {
+            debug!("{} {} → planning_protocol", hook.hook_event_name, tool);
+            planning_protocol();
+        }
+        ("PostToolUse", "Bash") => {
+            debug!("{} {} → post_git_write", hook.hook_event_name, tool);
+            post_git_write(&hook);
+        }
+        ("SessionStart", _) => {
+            debug!("{} {} → session_start", hook.hook_event_name, tool);
+            session_start(&hook);
+        }
+        _ => {
+            debug!("{} {} → no-op", hook.hook_event_name, tool);
+        }
     }
 }
 
@@ -205,7 +210,8 @@ fn message_transform(hook: &HookInput) {
     }
 
     let dir = Path::new(&hook.cwd).join(".claude/messages");
-    if fs::create_dir_all(&dir).is_err() {
+    if let Err(e) = fs::create_dir_all(&dir) {
+        debug!("failed to create {}: {e}", dir.display());
         return;
     }
 
@@ -213,7 +219,8 @@ fn message_transform(hook: &HookInput) {
     let name: String = hash.iter().take(8).map(|b| format!("{b:02x}")).collect();
     let path = dir.join(format!("{name}.md"));
 
-    if fs::write(&path, content).is_err() {
+    if let Err(e) = fs::write(&path, content) {
+        debug!("failed to write {}: {e}", path.display());
         return;
     }
 
@@ -285,6 +292,7 @@ fn is_git_write_command(cmd: &str) -> bool {
         }
         trimmed
             .split("&&")
+            .flat_map(|s| s.split("||"))
             .flat_map(|s| s.split(';'))
             .any(|seg| {
                 let s = seg.trim();
@@ -391,9 +399,11 @@ fn ensure_config_ref(claude_md: &Path) {
     let new_content = if content.is_empty() {
         format!("{CONFIG_REF}\n")
     } else {
-        format!("{CONFIG_REF}\n\n{content}")
+        format!("{content}\n{CONFIG_REF}\n")
     };
-    let _ = fs::write(claude_md, new_content);
+    if let Err(e) = fs::write(claude_md, new_content) {
+        debug!("failed to write {}: {e}", claude_md.display());
+    }
 }
 
 // ── Install, Uninstall & Refresh ────────────────────────────────────
@@ -421,6 +431,20 @@ fn write_file(content: &str, dst: &Path) {
     println!("ok    {}", dst.display());
 }
 
+fn write_file_if_changed(content: &str, dst: &Path) {
+    if fs::read_to_string(dst).ok().as_deref() == Some(content) {
+        println!("ok    {} (unchanged)", dst.display());
+        return;
+    }
+    write_file(content, dst);
+}
+
+fn is_agentic_hook(entry: &Value) -> bool {
+    entry.get("hooks").and_then(Value::as_array).is_some_and(|h| {
+        h.iter().any(|hook| hook.get("command").and_then(Value::as_str) == Some("agentic"))
+    })
+}
+
 fn install(permissions: bool, no_permissions: bool) {
     let home = home_dir();
     let claude_dir = home.join(".claude");
@@ -433,25 +457,29 @@ fn install(permissions: bool, no_permissions: bool) {
     }
 
     // Remove files from prior installs
-    for name in LEGACY_REFS {
+    for name in LEGACY_AGENT_FILES {
         let path = claude_dir.join("agents").join(name);
         if path.exists() {
-            let _ = fs::remove_file(&path);
+            if let Err(e) = fs::remove_file(&path) {
+                debug!("failed to remove {}: {e}", path.display());
+            }
             println!("rm    {} (legacy)", path.display());
         }
     }
     // Also clean standalone legacy files from the claude dir root
-    for name in &["sign-off-protocol.md", "worker-protocol.md", "orchestration-rules.md"] {
+    for name in LEGACY_ROOT_FILES {
         let path = claude_dir.join(name);
         if path.exists() {
-            let _ = fs::remove_file(&path);
+            if let Err(e) = fs::remove_file(&path) {
+                debug!("failed to remove {}: {e}", path.display());
+            }
             println!("rm    {} (legacy)", path.display());
         }
     }
 
     // Global CLAUDE.md + coding-standards.md
-    write_file(GLOBAL_CLAUDE_MD, &claude_dir.join("CLAUDE.md"));
-    write_file(CODING_STANDARDS_MD, &claude_dir.join("coding-standards.md"));
+    write_file_if_changed(GLOBAL_CLAUDE_MD, &claude_dir.join("CLAUDE.md"));
+    write_file_if_changed(CODING_STANDARDS_MD, &claude_dir.join("coding-standards.md"));
 
     // Install binary
     let bin_dir = home.join(".local/bin");
@@ -469,7 +497,9 @@ fn install(permissions: bool, no_permissions: bool) {
     // Clean up old agentic-hooks binary
     let old_bin = bin_dir.join("agentic-hooks");
     if old_bin.exists() {
-        let _ = fs::remove_file(&old_bin);
+        if let Err(e) = fs::remove_file(&old_bin) {
+            debug!("failed to remove {}: {e}", old_bin.display());
+        }
         println!("rm    {} (renamed)", old_bin.display());
     }
 
@@ -480,16 +510,20 @@ fn install(permissions: bool, no_permissions: bool) {
         .and_then(|s| serde_json::from_str(&s).ok())
         .unwrap_or_else(|| serde_json::json!({}));
 
+    if !settings.is_object() {
+        eprintln!("Warning: settings.json is not a JSON object, resetting to {{}}");
+        settings = serde_json::json!({});
+    }
+
     let obj = settings.as_object_mut().unwrap();
 
-    obj.entry("env")
-        .or_insert_with(|| serde_json::json!({}))
-        .as_object_mut()
-        .unwrap()
-        .insert(
-            "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS".into(),
-            Value::String("1".into()),
-        );
+    let env_val = obj.entry("env").or_insert_with(|| serde_json::json!({}));
+    if !env_val.is_object() { *env_val = serde_json::json!({}); }
+    let env_obj = env_val.as_object_mut().unwrap();
+    env_obj.insert(
+        "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS".into(),
+        Value::String("1".into()),
+    );
 
     // Merge agentic hooks into existing config (preserve user hooks)
     let agentic_hooks: &[(&str, &[&str])] = &[
@@ -498,30 +532,19 @@ fn install(permissions: bool, no_permissions: bool) {
         ("SessionStart", &["startup"]),
     ];
 
-    let hooks_obj = obj
-        .entry("hooks")
-        .or_insert_with(|| serde_json::json!({}))
-        .as_object_mut()
-        .unwrap();
+    let hooks_val = obj.entry("hooks").or_insert_with(|| serde_json::json!({}));
+    if !hooks_val.is_object() { *hooks_val = serde_json::json!({}); }
+    let hooks_obj = hooks_val.as_object_mut().unwrap();
 
     for (event, matchers) in agentic_hooks {
-        let arr = hooks_obj
-            .entry(*event)
-            .or_insert_with(|| serde_json::json!([]))
-            .as_array_mut()
-            .unwrap();
+        let arr_val = hooks_obj.entry(*event).or_insert_with(|| serde_json::json!([]));
+        if !arr_val.is_array() { *arr_val = serde_json::json!([]); }
+        let arr = arr_val.as_array_mut().unwrap();
 
         for matcher in *matchers {
             let dominated = arr.iter().any(|entry| {
                 entry.get("matcher").and_then(Value::as_str) == Some(matcher)
-                    && entry
-                        .get("hooks")
-                        .and_then(Value::as_array)
-                        .is_some_and(|h| {
-                            h.iter().any(|hook| {
-                                hook.get("command").and_then(Value::as_str) == Some("agentic")
-                            })
-                        })
+                    && is_agentic_hook(entry)
             });
             if !dominated {
                 arr.push(serde_json::json!({
@@ -546,40 +569,35 @@ fn install(permissions: bool, no_permissions: bool) {
     };
 
     if install_perms {
-        let perms_obj = obj
-            .entry("permissions")
-            .or_insert_with(|| serde_json::json!({}))
-            .as_object_mut()
-            .unwrap();
+        let perms_val = obj.entry("permissions").or_insert_with(|| serde_json::json!({}));
+        if !perms_val.is_object() { *perms_val = serde_json::json!({}); }
+        let perms_obj = perms_val.as_object_mut().unwrap();
 
-        let allow_arr = perms_obj
-            .entry("allow")
-            .or_insert_with(|| serde_json::json!([]))
-            .as_array_mut()
-            .unwrap();
+        let allow_val = perms_obj.entry("allow").or_insert_with(|| serde_json::json!([]));
+        if !allow_val.is_array() { *allow_val = serde_json::json!([]); }
+        let allow_arr = allow_val.as_array_mut().unwrap();
 
-        let mut added = 0usize;
+        let mut allow_added = 0usize;
         for perm in AGENTIC_PERMISSIONS {
             if !allow_arr.iter().any(|v| v.as_str() == Some(perm)) {
                 allow_arr.push(Value::String(perm.to_string()));
-                added += 1;
+                allow_added += 1;
             }
         }
 
-        let deny_arr = perms_obj
-            .entry("deny")
-            .or_insert_with(|| serde_json::json!([]))
-            .as_array_mut()
-            .unwrap();
+        let deny_val = perms_obj.entry("deny").or_insert_with(|| serde_json::json!([]));
+        if !deny_val.is_array() { *deny_val = serde_json::json!([]); }
+        let deny_arr = deny_val.as_array_mut().unwrap();
 
+        let mut deny_added = 0usize;
         for perm in AGENTIC_DENY {
             if !deny_arr.iter().any(|v| v.as_str() == Some(perm)) {
                 deny_arr.push(Value::String(perm.to_string()));
-                added += 1;
+                deny_added += 1;
             }
         }
 
-        println!("ok    {added} permissions added to settings.json");
+        println!("ok    {allow_added} allow + {deny_added} deny permissions added to settings.json");
     }
 
     fs::write(
@@ -599,31 +617,54 @@ fn uninstall() {
     for (name, _) in AGENTS {
         let path = claude_dir.join("agents").join(name);
         if path.exists() {
-            let _ = fs::remove_file(&path);
+            if let Err(e) = fs::remove_file(&path) {
+                debug!("failed to remove {}: {e}", path.display());
+            }
             println!("rm    {}", path.display());
         }
     }
 
-    for name in LEGACY_REFS {
+    for name in LEGACY_AGENT_FILES {
         let path = claude_dir.join("agents").join(name);
         if path.exists() {
-            let _ = fs::remove_file(&path);
+            if let Err(e) = fs::remove_file(&path) {
+                debug!("failed to remove {}: {e}", path.display());
+            }
             println!("rm    {}", path.display());
         }
     }
-    for name in &["sign-off-protocol.md", "worker-protocol.md", "orchestration-rules.md"] {
+    for name in LEGACY_ROOT_FILES {
         let path = claude_dir.join(name);
         if path.exists() {
-            let _ = fs::remove_file(&path);
+            if let Err(e) = fs::remove_file(&path) {
+                debug!("failed to remove {}: {e}", path.display());
+            }
             println!("rm    {}", path.display());
         }
     }
 
-    // Remove coding-standards.md
+    let claude_md = claude_dir.join("CLAUDE.md");
+    if claude_md.exists() {
+        if fs::read_to_string(&claude_md).ok().as_deref() == Some(GLOBAL_CLAUDE_MD) {
+            if let Err(e) = fs::remove_file(&claude_md) {
+                debug!("failed to remove {}: {e}", claude_md.display());
+            }
+            println!("rm    {}", claude_md.display());
+        } else {
+            println!("skip  {} (user-modified)", claude_md.display());
+        }
+    }
+
     let coding_standards = claude_dir.join("coding-standards.md");
     if coding_standards.exists() {
-        let _ = fs::remove_file(&coding_standards);
-        println!("rm    {}", coding_standards.display());
+        if fs::read_to_string(&coding_standards).ok().as_deref() == Some(CODING_STANDARDS_MD) {
+            if let Err(e) = fs::remove_file(&coding_standards) {
+                debug!("failed to remove {}: {e}", coding_standards.display());
+            }
+            println!("rm    {}", coding_standards.display());
+        } else {
+            println!("skip  {} (user-modified)", coding_standards.display());
+        }
     }
 
     let settings_path = claude_dir.join("settings.json");
@@ -636,22 +677,12 @@ fn uninstall() {
             if let Some(hooks_obj) = obj.get_mut("hooks").and_then(Value::as_object_mut) {
                 for arr in hooks_obj.values_mut() {
                     if let Some(entries) = arr.as_array_mut() {
-                        entries.retain(|entry| {
-                            !entry
-                                .get("hooks")
-                                .and_then(Value::as_array)
-                                .is_some_and(|h| {
-                                    h.iter().any(|hook| {
-                                        hook.get("command").and_then(Value::as_str)
-                                            == Some("agentic")
-                                    })
-                                })
-                        });
+                        entries.retain(|entry| !is_agentic_hook(entry));
                     }
                 }
                 // Remove empty event arrays
                 hooks_obj.retain(|_, v| {
-                    v.as_array().map_or(true, |a| !a.is_empty())
+                    v.as_array().is_none_or(|a| !a.is_empty())
                 });
                 // Remove hooks object entirely if empty
                 if hooks_obj.is_empty() {
@@ -660,6 +691,9 @@ fn uninstall() {
             }
             if let Some(env_obj) = obj.get_mut("env").and_then(Value::as_object_mut) {
                 env_obj.remove("CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS");
+            }
+            if obj.get("env").and_then(Value::as_object).is_some_and(|e| e.is_empty()) {
+                obj.remove("env");
             }
             // Remove agentic permissions
             if let Some(perms_obj) = obj.get_mut("permissions").and_then(Value::as_object_mut) {
@@ -695,11 +729,12 @@ fn uninstall() {
     for name in &["agentic", "agentic-hooks"] {
         let bin = home.join(".local/bin").join(name);
         if bin.exists() {
-            let _ = fs::remove_file(&bin);
+            if let Err(e) = fs::remove_file(&bin) {
+                debug!("failed to remove {}: {e}", bin.display());
+            }
             println!("rm    {}", bin.display());
         }
     }
 
     println!("\nUninstall complete.");
 }
-
