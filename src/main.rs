@@ -452,8 +452,8 @@ fn detect_rust(cwd: &Path) -> Option<ProjectInfo> {
 
     let name = content
         .lines()
-        .find(|l| l.trim_start().starts_with("name") && l.contains('='))
-        .and_then(|l| l.split('=').nth(1))
+        .find(|l| l.trim().starts_with("name") && l.contains('='))
+        .and_then(|l| l.split_once('=').map(|x| x.1))
         .map(|s| s.trim().trim_matches('"').to_string())
         .unwrap_or_else(|| {
             cwd.file_name()
@@ -462,7 +462,7 @@ fn detect_rust(cwd: &Path) -> Option<ProjectInfo> {
                 .to_string()
         });
 
-    let is_workspace = content.contains("[workspace]");
+    let is_workspace = content.lines().any(|l| l.trim() == "[workspace]");
     let description = if is_workspace {
         "Rust workspace".to_string()
     } else {
@@ -610,8 +610,8 @@ fn detect_python(cwd: &Path) -> Option<ProjectInfo> {
 
     let name = content
         .lines()
-        .find(|l| l.trim_start().starts_with("name") && l.contains('='))
-        .and_then(|l| l.split('=').nth(1))
+        .find(|l| l.trim().starts_with("name") && l.contains('='))
+        .and_then(|l| l.split_once('=').map(|x| x.1))
         .map(|s| s.trim().trim_matches('"').to_string())
         .unwrap_or_else(|| {
             cwd.file_name()
@@ -620,7 +620,7 @@ fn detect_python(cwd: &Path) -> Option<ProjectInfo> {
                 .to_string()
         });
 
-    let has_build_system = content.contains("[build-system]");
+    let has_build_system = content.lines().any(|l| l.trim() == "[build-system]");
     let build_commands = if has_build_system {
         vec!["pip install -e .".to_string()]
     } else {
