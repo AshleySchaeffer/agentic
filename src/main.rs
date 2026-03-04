@@ -314,7 +314,7 @@ fn session_start(hook: &HookInput) {
 
 fn ensure_config_ref(claude_md: &Path) {
     let content = fs::read_to_string(claude_md).unwrap_or_default();
-    if content.contains(CONFIG_REF) {
+    if content.lines().any(|l| l.trim() == CONFIG_REF) {
         return;
     }
     debug!("adding @project-config.md to {}", claude_md.display());
