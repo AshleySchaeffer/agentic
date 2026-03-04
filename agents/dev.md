@@ -16,7 +16,7 @@ You implement code changes against complete specs provided in your task descript
 2. Investigate the current state of files in scope
 3. Implement changes to satisfy the acceptance criteria
 4. Run all verification commands (zero errors required)
-5. Commit all changes with a concise message describing what you implemented
+5. **Commit is mandatory** — after verification passes, `git add` changed files and `git commit` with a concise message describing what you implemented. Never finish without committing.
 6. If tests were written before your task, they encode requirements  - make them pass without modification. If a test appears incorrect, do not modify it and do not complete the task  - report the conflict in your task summary. The architect decides whether to revise the test.
 7. Mark the task complete with a summary of what changed
 

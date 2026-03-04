@@ -211,7 +211,7 @@ fn message_transform(hook: &HookInput) {
 
     let dir = Path::new(&hook.cwd).join(".claude/messages");
     if let Err(e) = fs::create_dir_all(&dir) {
-        debug!("failed to create {}: {e}", dir.display());
+        eprintln!("failed to create {}: {e}", dir.display());
         return;
     }
 
@@ -220,7 +220,7 @@ fn message_transform(hook: &HookInput) {
     let path = dir.join(format!("{name}.md"));
 
     if let Err(e) = fs::write(&path, content) {
-        debug!("failed to write {}: {e}", path.display());
+        eprintln!("failed to write {}: {e}", path.display());
         return;
     }
 
@@ -402,7 +402,7 @@ fn ensure_config_ref(claude_md: &Path) {
         format!("{content}\n{CONFIG_REF}\n")
     };
     if let Err(e) = fs::write(claude_md, new_content) {
-        debug!("failed to write {}: {e}", claude_md.display());
+        eprintln!("failed to write {}: {e}", claude_md.display());
     }
 }
 
@@ -461,7 +461,7 @@ fn install(permissions: bool, no_permissions: bool) {
         let path = claude_dir.join("agents").join(name);
         if path.exists() {
             if let Err(e) = fs::remove_file(&path) {
-                debug!("failed to remove {}: {e}", path.display());
+                eprintln!("failed to remove {}: {e}", path.display());
             }
             println!("rm    {} (legacy)", path.display());
         }
@@ -471,7 +471,7 @@ fn install(permissions: bool, no_permissions: bool) {
         let path = claude_dir.join(name);
         if path.exists() {
             if let Err(e) = fs::remove_file(&path) {
-                debug!("failed to remove {}: {e}", path.display());
+                eprintln!("failed to remove {}: {e}", path.display());
             }
             println!("rm    {} (legacy)", path.display());
         }
@@ -498,7 +498,7 @@ fn install(permissions: bool, no_permissions: bool) {
     let old_bin = bin_dir.join("agentic-hooks");
     if old_bin.exists() {
         if let Err(e) = fs::remove_file(&old_bin) {
-            debug!("failed to remove {}: {e}", old_bin.display());
+            eprintln!("failed to remove {}: {e}", old_bin.display());
         }
         println!("rm    {} (renamed)", old_bin.display());
     }
@@ -618,7 +618,7 @@ fn uninstall() {
         let path = claude_dir.join("agents").join(name);
         if path.exists() {
             if let Err(e) = fs::remove_file(&path) {
-                debug!("failed to remove {}: {e}", path.display());
+                eprintln!("failed to remove {}: {e}", path.display());
             }
             println!("rm    {}", path.display());
         }
@@ -628,7 +628,7 @@ fn uninstall() {
         let path = claude_dir.join("agents").join(name);
         if path.exists() {
             if let Err(e) = fs::remove_file(&path) {
-                debug!("failed to remove {}: {e}", path.display());
+                eprintln!("failed to remove {}: {e}", path.display());
             }
             println!("rm    {}", path.display());
         }
@@ -637,7 +637,7 @@ fn uninstall() {
         let path = claude_dir.join(name);
         if path.exists() {
             if let Err(e) = fs::remove_file(&path) {
-                debug!("failed to remove {}: {e}", path.display());
+                eprintln!("failed to remove {}: {e}", path.display());
             }
             println!("rm    {}", path.display());
         }
@@ -647,7 +647,7 @@ fn uninstall() {
     if claude_md.exists() {
         if fs::read_to_string(&claude_md).ok().as_deref() == Some(GLOBAL_CLAUDE_MD) {
             if let Err(e) = fs::remove_file(&claude_md) {
-                debug!("failed to remove {}: {e}", claude_md.display());
+                eprintln!("failed to remove {}: {e}", claude_md.display());
             }
             println!("rm    {}", claude_md.display());
         } else {
@@ -659,7 +659,7 @@ fn uninstall() {
     if coding_standards.exists() {
         if fs::read_to_string(&coding_standards).ok().as_deref() == Some(CODING_STANDARDS_MD) {
             if let Err(e) = fs::remove_file(&coding_standards) {
-                debug!("failed to remove {}: {e}", coding_standards.display());
+                eprintln!("failed to remove {}: {e}", coding_standards.display());
             }
             println!("rm    {}", coding_standards.display());
         } else {
@@ -730,7 +730,7 @@ fn uninstall() {
         let bin = home.join(".local/bin").join(name);
         if bin.exists() {
             if let Err(e) = fs::remove_file(&bin) {
-                debug!("failed to remove {}: {e}", bin.display());
+                eprintln!("failed to remove {}: {e}", bin.display());
             }
             println!("rm    {}", bin.display());
         }
