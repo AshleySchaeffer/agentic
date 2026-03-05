@@ -54,3 +54,5 @@ Single binary (`src/main.rs`) serves four roles via CLI dispatch:
 - `LEGACY_REFS` array tracks filenames from prior versions for cleanup on install/uninstall
 - `planning-protocol.md` is never written to disk  - it exists only as a compiled-in string injected via hook context
 - `ensure_config_ref` helper is shared between `session_start` and `post_git_write`  - ensures `@project-config.md` reference in the project's CLAUDE.md
+
+@project-config.md
