@@ -52,8 +52,7 @@ const GLOBAL_CLAUDE_MD: &str = include_str!("../architect.md");
 const CODING_STANDARDS_MD: &str = include_str!("../coding-standards.md");
 const PLANNING_PROTOCOL: &str = include_str!("../planning-protocol.md");
 
-const AGENTIC_PERMISSIONS: &[&str] = &[
-    // Git workflow (universal for worktree-based agents)
+const TIER_GIT_ALLOW: &[&str] = &[
     "Bash(git status)",
     "Bash(git diff *)",
     "Bash(git log *)",
@@ -66,6 +65,10 @@ const AGENTIC_PERMISSIONS: &[&str] = &[
     "Bash(git stash *)",
     "Bash(git checkout *)",
     "Bash(git rev-parse *)",
+];
+const TIER_GIT_DENY: &[&str] = &[];
+
+const TIER_READONLY_ALLOW: &[&str] = &[
     // Read-only shell commands
     "Bash(ls *)",
     "Bash(cat *)",
@@ -92,15 +95,19 @@ const AGENTIC_PERMISSIONS: &[&str] = &[
     "Bash(dirname *)",
     // File tools
     "Read",
-    "Edit",
-    "Write",
     "Glob",
     "Grep",
-    "NotebookEdit",
+];
+const TIER_READONLY_DENY: &[&str] = &[
+    "Bash(sed -i *)",
 ];
 
-const AGENTIC_DENY: &[&str] = &[
-    "Bash(sed -i *)",   // block in-place editing — piped sed is fine
+const TIER_WRITE_ALLOW: &[&str] = &[
+    "Edit",
+    "Write",
+    "NotebookEdit",
+];
+const TIER_WRITE_DENY: &[&str] = &[
     "Edit(/.claude/settings.json)",
     "Edit(/.claude/settings.local.json)",
     "Write(/.claude/settings.json)",
@@ -119,26 +126,43 @@ struct Cli {
 #[derive(Subcommand)]
 enum Command {
     /// Install agentic workflow globally
-    Install {
-        /// Pre-approve recommended permissions (git ops + read-only shell)
-        #[arg(long)]
-        permissions: bool,
-        /// Skip permissions prompt
-        #[arg(long)]
-        no_permissions: bool,
-    },
+    Install,
     /// Remove agentic workflow (agents, hooks, binary)
     Uninstall,
     /// Refresh or create project-config.md
     Refresh,
+    /// Manage project-local permissions
+    Permissions {
+        #[command(subcommand)]
+        command: PermissionsCommand,
+    },
+}
+
+#[derive(Subcommand)]
+enum PermissionsCommand {
+    /// Add permission tiers to project-local settings
+    Add {
+        /// Add git workflow permissions
+        #[arg(long)]
+        git: bool,
+        /// Add read-only shell + file tool permissions
+        #[arg(long)]
+        readonly: bool,
+        /// Add file editing permissions (Edit, Write, NotebookEdit)
+        #[arg(long)]
+        write: bool,
+    },
+    /// Remove all agentic-managed permissions from project-local settings
+    Remove,
 }
 
 fn main() {
     let cli = Cli::parse();
     match cli.command {
-        Some(Command::Install { permissions, no_permissions }) => install(permissions, no_permissions),
+        Some(Command::Install) => install(),
         Some(Command::Uninstall) => uninstall(),
         Some(Command::Refresh) => refresh(),
+        Some(Command::Permissions { command }) => permissions(command),
         None => hook_dispatch(),
     }
 }
@@ -902,7 +926,166 @@ fn is_agentic_hook(entry: &Value) -> bool {
     })
 }
 
-fn install(permissions: bool, no_permissions: bool) {
+fn load_settings(path: &Path) -> Value {
+    fs::read_to_string(path)
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_else(|| serde_json::json!({}))
+}
+
+fn save_settings(path: &Path, settings: &Value) {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).ok();
+    }
+    fs::write(path, serde_json::to_string_pretty(settings).unwrap())
+        .unwrap_or_else(|e| {
+            eprintln!("Failed to write {}: {e}", path.display());
+            process::exit(1);
+        });
+}
+
+fn add_permissions(settings: &mut Value, allow: &[&str], deny: &[&str]) -> (usize, usize) {
+    let obj = settings.as_object_mut().unwrap();
+    let perms_val = obj.entry("permissions").or_insert_with(|| serde_json::json!({}));
+    if !perms_val.is_object() { *perms_val = serde_json::json!({}); }
+    let perms_obj = perms_val.as_object_mut().unwrap();
+
+    let allow_val = perms_obj.entry("allow").or_insert_with(|| serde_json::json!([]));
+    if !allow_val.is_array() { *allow_val = serde_json::json!([]); }
+    let allow_arr = allow_val.as_array_mut().unwrap();
+    let mut allow_added = 0usize;
+    for perm in allow {
+        if !allow_arr.iter().any(|v| v.as_str() == Some(perm)) {
+            allow_arr.push(Value::String(perm.to_string()));
+            allow_added += 1;
+        }
+    }
+
+    let deny_val = perms_obj.entry("deny").or_insert_with(|| serde_json::json!([]));
+    if !deny_val.is_array() { *deny_val = serde_json::json!([]); }
+    let deny_arr = deny_val.as_array_mut().unwrap();
+    let mut deny_added = 0usize;
+    for perm in deny {
+        if !deny_arr.iter().any(|v| v.as_str() == Some(perm)) {
+            deny_arr.push(Value::String(perm.to_string()));
+            deny_added += 1;
+        }
+    }
+
+    (allow_added, deny_added)
+}
+
+fn remove_permissions(settings: &mut Value, allow: &[&str], deny: &[&str]) {
+    if let Some(obj) = settings.as_object_mut()
+        && let Some(perms_obj) = obj.get_mut("permissions").and_then(Value::as_object_mut)
+    {
+        if let Some(allow_arr) = perms_obj.get_mut("allow").and_then(Value::as_array_mut) {
+            allow_arr.retain(|v| !allow.iter().any(|p| v.as_str() == Some(p)));
+            if allow_arr.is_empty() {
+                perms_obj.remove("allow");
+            }
+        }
+        if let Some(deny_arr) = perms_obj.get_mut("deny").and_then(Value::as_array_mut) {
+            deny_arr.retain(|v| !deny.iter().any(|p| v.as_str() == Some(p)));
+            if deny_arr.is_empty() {
+                perms_obj.remove("deny");
+            }
+        }
+        if perms_obj.is_empty() {
+            obj.remove("permissions");
+        }
+    }
+}
+
+fn permissions(cmd: PermissionsCommand) {
+    let cwd = env::current_dir().unwrap_or_default();
+    let settings_path = cwd.join(".claude/settings.local.json");
+
+    match cmd {
+        PermissionsCommand::Add { git, readonly, write } => {
+            let interactive = !git && !readonly && !write;
+
+            let add_git = git || (interactive && prompt_yn("Add git workflow permissions?"));
+            let add_readonly = readonly || (interactive && prompt_yn("Add read-only shell + file tool permissions?"));
+            let add_write = write || (interactive && prompt_yn("Add file editing permissions (Edit, Write, NotebookEdit)?"));
+
+            if !add_git && !add_readonly && !add_write {
+                println!("No tiers selected.");
+                return;
+            }
+
+            let mut settings = load_settings(&settings_path);
+            if !settings.is_object() {
+                settings = serde_json::json!({});
+            }
+
+            let mut total_allow = 0usize;
+            let mut total_deny = 0usize;
+
+            if add_git {
+                let (a, d) = add_permissions(&mut settings, TIER_GIT_ALLOW, TIER_GIT_DENY);
+                total_allow += a;
+                total_deny += d;
+                println!("ok    git tier: {a} allow + {d} deny added");
+            }
+            if add_readonly {
+                let (a, d) = add_permissions(&mut settings, TIER_READONLY_ALLOW, TIER_READONLY_DENY);
+                total_allow += a;
+                total_deny += d;
+                println!("ok    readonly tier: {a} allow + {d} deny added");
+            }
+            if add_write {
+                let (a, d) = add_permissions(&mut settings, TIER_WRITE_ALLOW, TIER_WRITE_DENY);
+                total_allow += a;
+                total_deny += d;
+                println!("ok    write tier: {a} allow + {d} deny added");
+            }
+
+            save_settings(&settings_path, &settings);
+            println!("ok    {} ({total_allow} allow + {total_deny} deny total)", settings_path.display());
+        }
+        PermissionsCommand::Remove => {
+            if !settings_path.exists() {
+                println!("No project-local settings found.");
+                return;
+            }
+
+            let mut settings = load_settings(&settings_path);
+
+            let all_allow: Vec<&str> = TIER_GIT_ALLOW.iter()
+                .chain(TIER_READONLY_ALLOW.iter())
+                .chain(TIER_WRITE_ALLOW.iter())
+                .copied()
+                .collect();
+            let all_deny: Vec<&str> = TIER_GIT_DENY.iter()
+                .chain(TIER_READONLY_DENY.iter())
+                .chain(TIER_WRITE_DENY.iter())
+                .copied()
+                .collect();
+
+            remove_permissions(&mut settings, &all_allow, &all_deny);
+
+            if settings.as_object().is_some_and(|o| o.is_empty()) {
+                if let Err(e) = fs::remove_file(&settings_path) {
+                    eprintln!("failed to remove {}: {e}", settings_path.display());
+                }
+                println!("rm    {} (empty after cleanup)", settings_path.display());
+            } else {
+                save_settings(&settings_path, &settings);
+                println!("ok    {} (agentic permissions removed)", settings_path.display());
+            }
+        }
+    }
+}
+
+fn prompt_yn(question: &str) -> bool {
+    eprint!("{question} [y/N] ");
+    let mut answer = String::new();
+    io::BufRead::read_line(&mut io::stdin().lock(), &mut answer).unwrap_or(0);
+    matches!(answer.trim(), "y" | "Y" | "yes" | "Yes" | "YES")
+}
+
+fn install() {
     let home = home_dir();
     let claude_dir = home.join(".claude");
 
@@ -1012,51 +1195,6 @@ fn install(permissions: bool, no_permissions: bool) {
         }
     }
 
-    // Determine whether to install permissions
-    let install_perms = if permissions {
-        true
-    } else if no_permissions {
-        false
-    } else {
-        // Interactive prompt
-        eprint!("Install recommended permissions (git ops + read-only shell)? [y/N] ");
-        let mut answer = String::new();
-        io::BufRead::read_line(&mut io::stdin().lock(), &mut answer).unwrap_or(0);
-        matches!(answer.trim(), "y" | "Y" | "yes" | "Yes" | "YES")
-    };
-
-    if install_perms {
-        let perms_val = obj.entry("permissions").or_insert_with(|| serde_json::json!({}));
-        if !perms_val.is_object() { *perms_val = serde_json::json!({}); }
-        let perms_obj = perms_val.as_object_mut().unwrap();
-
-        let allow_val = perms_obj.entry("allow").or_insert_with(|| serde_json::json!([]));
-        if !allow_val.is_array() { *allow_val = serde_json::json!([]); }
-        let allow_arr = allow_val.as_array_mut().unwrap();
-
-        let mut allow_added = 0usize;
-        for perm in AGENTIC_PERMISSIONS {
-            if !allow_arr.iter().any(|v| v.as_str() == Some(perm)) {
-                allow_arr.push(Value::String(perm.to_string()));
-                allow_added += 1;
-            }
-        }
-
-        let deny_val = perms_obj.entry("deny").or_insert_with(|| serde_json::json!([]));
-        if !deny_val.is_array() { *deny_val = serde_json::json!([]); }
-        let deny_arr = deny_val.as_array_mut().unwrap();
-
-        let mut deny_added = 0usize;
-        for perm in AGENTIC_DENY {
-            if !deny_arr.iter().any(|v| v.as_str() == Some(perm)) {
-                deny_arr.push(Value::String(perm.to_string()));
-                deny_added += 1;
-            }
-        }
-
-        println!("ok    {allow_added} allow + {deny_added} deny permissions added to settings.json");
-    }
-
     fs::write(
         &settings_path,
         serde_json::to_string_pretty(&settings).unwrap(),
@@ -1152,29 +1290,19 @@ fn uninstall() {
             if obj.get("env").and_then(Value::as_object).is_some_and(|e| e.is_empty()) {
                 obj.remove("env");
             }
-            // Remove agentic permissions
-            if let Some(perms_obj) = obj.get_mut("permissions").and_then(Value::as_object_mut) {
-                if let Some(allow_arr) = perms_obj.get_mut("allow").and_then(Value::as_array_mut) {
-                    allow_arr.retain(|v| {
-                        !AGENTIC_PERMISSIONS.iter().any(|p| v.as_str() == Some(p))
-                    });
-                    if allow_arr.is_empty() {
-                        perms_obj.remove("allow");
-                    }
-                }
-                if let Some(deny_arr) = perms_obj.get_mut("deny").and_then(Value::as_array_mut) {
-                    deny_arr.retain(|v| {
-                        !AGENTIC_DENY.iter().any(|p| v.as_str() == Some(p))
-                    });
-                    if deny_arr.is_empty() {
-                        perms_obj.remove("deny");
-                    }
-                }
-                if perms_obj.is_empty() {
-                    obj.remove("permissions");
-                }
-            }
         }
+        // Remove legacy agentic permissions from global settings
+        let all_allow: Vec<&str> = TIER_GIT_ALLOW.iter()
+            .chain(TIER_READONLY_ALLOW.iter())
+            .chain(TIER_WRITE_ALLOW.iter())
+            .copied()
+            .collect();
+        let all_deny: Vec<&str> = TIER_GIT_DENY.iter()
+            .chain(TIER_READONLY_DENY.iter())
+            .chain(TIER_WRITE_DENY.iter())
+            .copied()
+            .collect();
+        remove_permissions(&mut settings, &all_allow, &all_deny);
         let _ = fs::write(
             &settings_path,
             serde_json::to_string_pretty(&settings).unwrap(),

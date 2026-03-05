@@ -20,12 +20,13 @@ Debug hooks: `AGENTIC_DEBUG=1 echo '{"hook_event_name":"...","tool_name":"...","
 
 ## Architecture
 
-Single binary (`src/main.rs`) serves four roles via CLI dispatch:
+Single binary (`src/main.rs`) serves five roles via CLI dispatch:
 
 1. **Hook handler** (no subcommand)  - reads JSON from stdin, dispatches by `(hook_event_name, tool_name)` tuple to one of five handlers
 2. **`install`**  - embeds all config files at compile time via `include_str!`, writes them to `~/.claude/`, copies self to `~/.local/bin/agentic`, merges hook entries into `~/.claude/settings.json`
 3. **`uninstall`**  - reverse of install, preserving non-agentic user hooks
 4. **`refresh`**  - prints create/refresh instructions for project-config.md
+5. **`permissions`**  - manages project-local permissions in `.claude/settings.local.json` with 3 tiers (git, readonly, write)
 
 ### Embedded content → install targets
 
