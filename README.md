@@ -1,12 +1,12 @@
 # Agentic
 
-A Claude Code multi-agent configuration. Two agents, five hooks, one CLAUDE.md under 120 lines.
+A Claude Code multi-agent configuration. Three agents, four hooks, one CLAUDE.md under 120 lines.
 
 ## Why
 
 Multi-agent coding setups fail in predictable ways. Agentic addresses the three that matter most.
 
-**Agent teams don't scale.** Communication overhead grows super-linearly beyond 3-4 agents ([Kim et al. 2025](https://arxiv.org/abs/2512.08296)), and 2 diverse agents match or exceed 16 homogeneous ones ([Li et al. 2025](https://arxiv.org/abs/2602.03794)). As base models improve, the multi-agent advantage shrinks from ~10% to ~3% ([Chen et al. 2025](https://arxiv.org/abs/2505.18286)). Agentic uses 2 task-oriented agents (dev on Sonnet, reviewer on Opus) with the main Opus session as architect  - model diversity over headcount.
+**Agent teams don't scale.** Communication overhead grows super-linearly beyond 3-4 agents ([Kim et al. 2025](https://arxiv.org/abs/2512.08296)), and 2 diverse agents match or exceed 16 homogeneous ones ([Li et al. 2025](https://arxiv.org/abs/2602.03794)). As base models improve, the multi-agent advantage shrinks from ~10% to ~3% ([Chen et al. 2025](https://arxiv.org/abs/2505.18286)). Agentic uses 3 task-oriented agents (dev on Sonnet, reviewer on Opus, config-gen on Haiku) with the main Opus session as architect  - model diversity over headcount.
 
 **Instructions get ignored.** Claude follows each instruction with ~90% accuracy, but 10 simultaneous instructions compound to ~35% ([Curse of Instructions, ICLR 2025](https://openreview.net/forum?id=R6q67CDBCH)). Claude Code's system prompt already consumes ~50 instructions before your CLAUDE.md loads ([IFScale, Distyl AI 2025](https://arxiv.org/abs/2507.11538)). Structured prompts survive compaction with 92% fidelity vs 71% for prose. Agentic keeps CLAUDE.md under 120 lines with XML directive tags, progressive disclosure to external files, and hook-injected protocols that cost zero context until triggered.
 
@@ -27,10 +27,11 @@ Installs to `~/.claude/`:
 | coding-standards.md | `~/.claude/coding-standards.md` | Full standards (progressive disclosure from CLAUDE.md) |
 | dev agent | `~/.claude/agents/dev.md` | Sonnet  - implements against complete specs |
 | reviewer agent | `~/.claude/agents/reviewer.md` | Opus  - focused review with task-specific checklist |
-| hooks binary | `~/.local/bin/agentic` | 5 hooks compiled to a single binary |
+| config-gen agent | `~/.claude/agents/config-gen.md` | Haiku  - scans project and generates project-config.md |
+| hooks binary | `~/.local/bin/agentic` | 4 hooks compiled to a single binary |
 | settings.json | `~/.claude/settings.json` | Hook matchers + agent teams flag |
 
-To refresh project config: `agentic refresh`
+To manage project-local permissions: `agentic permissions add`
 To uninstall: `agentic uninstall`
 
 ## Architecture
@@ -58,20 +59,20 @@ The main Claude Code session (Opus) acts as the architect directly  - no routing
 |---|---|---|
 | dev | Sonnet | Implements against complete specs autonomously |
 | reviewer | Opus | Focused review with task-specific checklist (high-stakes only) |
+| config-gen | Haiku | Scans project and generates/updates project-config.md |
 
-Agents are task-oriented, not role-bound. A dev receives a scoped task (files, criteria, verification commands) and works autonomously. The reviewer is spawned when a change introduces risks that verification commands don't address  - security-sensitive code, schema migrations, architectural shifts, concurrency, public API surface  - with a task-specific checklist of lenses, not open-ended critique.
+Agents are task-oriented, not role-bound. A dev receives a scoped task (files, criteria, verification commands) and works autonomously. The reviewer is spawned when a change introduces risks that verification commands don't address  - security-sensitive code, schema migrations, architectural shifts, concurrency, public API surface  - with a task-specific checklist of lenses, not open-ended critique. The config-gen agent bootstraps project-config.md for new projects by scanning actual tooling in use.
 
 ## Hooks
 
 | # | Trigger | What it does |
 |---|---|---|
-| 1 | PreToolUse/SendMessage | Offloads large messages (>4KB, >2KB with code) to disk, replaces with file reference |
+| 1 | PreToolUse/SendMessage | Offloads large messages (>4KB, >2KB with code) to disk, replaces with file reference. **Dormant** — only fires when Agent Teams are in use; present to enable future Agent Teams work |
 | 2 | PreToolUse/Agent | Forces `acceptEdits` mode on all agent spawns |
-| 3 | PostToolUse/Bash | Re-injects project-config.md content after git commit/merge/pull, verifies @reference |
-| 4 | PreToolUse/EnterPlanMode | Injects adaptive planning protocol (pattern-match vs novel classification) |
-| 5 | SessionStart | Ensures `@project-config.md` in project CLAUDE.md, bootstraps project-config.md if missing |
+| 3 | PreToolUse/EnterPlanMode | Injects adaptive planning protocol (pattern-match vs novel classification) |
+| 4 | SessionStart | Ensures `@project-config.md` in project CLAUDE.md, bootstraps project-config.md if missing |
 
-Hooks enforce what prompts cannot guarantee ([real-world verification outperforms LLM-on-LLM review](https://arxiv.org/abs/2311.17371)). Hook 4 is zero-cost  - the planning protocol lives in the binary and is injected only when plan mode is entered, keeping CLAUDE.md lean.
+Hooks enforce what prompts cannot guarantee ([real-world verification outperforms LLM-on-LLM review](https://arxiv.org/abs/2311.17371)). Hook 3 is zero-cost  - the planning protocol lives in the binary and is injected only when plan mode is entered, keeping CLAUDE.md lean.
 
 ## Design Decisions
 
@@ -83,7 +84,7 @@ Hooks enforce what prompts cannot guarantee ([real-world verification outperform
 6. **XML directive tags**  - structured prompts survive compaction with 92% fidelity vs 71% for prose
 7. **CLAUDE.md under 120 lines**  - instruction compliance degrades exponentially with count ([Curse of Instructions, ICLR 2025](https://openreview.net/forum?id=R6q67CDBCH)); Claude Code's system prompt already consumes ~1/3 of the instruction budget ([IFScale](https://arxiv.org/abs/2507.11538))
 8. **Complexity-based routing**  - multi-agent advantage shrinks to ~3% as models improve ([Chen et al. 2025](https://arxiv.org/abs/2505.18286)); simple tasks don't justify the overhead
-9. **Model diversity**  - Opus for orchestration/review, Sonnet for implementation, Haiku for exploration ([Li et al. 2025](https://arxiv.org/abs/2602.03794))
+9. **Model diversity**  - Opus for orchestration/review, Sonnet for implementation, Haiku for config generation ([Li et al. 2025](https://arxiv.org/abs/2602.03794))
 10. **Hook-injected planning protocol**  - zero context cost until plan mode entry; hooks enforce what prompts cannot
 
 ## Files
@@ -91,10 +92,11 @@ Hooks enforce what prompts cannot guarantee ([real-world verification outperform
 ```
 architect.md               # Architect protocol → ~/.claude/CLAUDE.md
 coding-standards.md        # Full standards (progressive disclosure)
-planning-protocol.md       # Planning protocol (injected via hook 4)
+planning-protocol.md       # Planning protocol (injected via hook 3)
 Cargo.toml                 # Binary: agentic
-src/main.rs                # 5 hooks + install/uninstall/refresh
+src/main.rs                # 4 hooks + install/uninstall/permissions
 agents/
   dev.md                   # Implementation agent (Sonnet)
   reviewer.md              # Review agent (Opus, high-stakes only)
+  config-gen.md            # Config generation agent (Haiku)
 ```

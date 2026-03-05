@@ -99,15 +99,9 @@ const TIER_READONLY_ALLOW: &[&str] = &[
     "Glob",
     "Grep",
 ];
-const TIER_READONLY_DENY: &[&str] = &[
-    "Bash(sed -i *)",
-];
+const TIER_READONLY_DENY: &[&str] = &["Bash(sed -i *)"];
 
-const TIER_WRITE_ALLOW: &[&str] = &[
-    "Edit",
-    "Write",
-    "NotebookEdit",
-];
+const TIER_WRITE_ALLOW: &[&str] = &["Edit", "Write", "NotebookEdit"];
 const TIER_WRITE_DENY: &[&str] = &[
     "Edit(/.claude/settings.json)",
     "Edit(/.claude/settings.local.json)",
@@ -211,7 +205,7 @@ fn hook_dispatch() {
     }
 }
 
-/// Hook 1: Message Transformation
+/// Hook 1: Message Transform
 /// Intercepts large SendMessage payloads, writes content to disk,
 /// replaces the message body with a file reference.
 fn message_transform(hook: &HookInput) {
@@ -299,7 +293,7 @@ fn agent_accept_edits(hook: &HookInput) {
     serde_json::to_writer(io::stdout(), &output).ok();
 }
 
-/// Hook 4: Adaptive Planning Protocol
+/// Hook 3: Adaptive Planning Protocol
 /// Injects the full planning protocol as additionalContext when plan mode is entered.
 fn planning_protocol() {
     debug!("injecting planning protocol");
@@ -313,7 +307,7 @@ fn planning_protocol() {
     serde_json::to_writer(io::stdout(), &output).ok();
 }
 
-/// Hook 5: Session Start — Bootstrap
+/// Hook 4: Session Start — Bootstrap
 /// Ensures @project-config.md reference in project CLAUDE.md and prompts config-gen agent if project-config.md is missing.
 fn session_start(hook: &HookInput) {
     let cwd = Path::new(&hook.cwd);
@@ -395,9 +389,13 @@ fn write_file_if_changed(content: &str, dst: &Path) {
 }
 
 fn is_agentic_hook(entry: &Value) -> bool {
-    entry.get("hooks").and_then(Value::as_array).is_some_and(|h| {
-        h.iter().any(|hook| hook.get("command").and_then(Value::as_str) == Some("agentic"))
-    })
+    entry
+        .get("hooks")
+        .and_then(Value::as_array)
+        .is_some_and(|h| {
+            h.iter()
+                .any(|hook| hook.get("command").and_then(Value::as_str) == Some("agentic"))
+        })
 }
 
 fn load_settings(path: &Path) -> Value {
@@ -411,21 +409,28 @@ fn save_settings(path: &Path, settings: &Value) {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).ok();
     }
-    fs::write(path, serde_json::to_string_pretty(settings).unwrap())
-        .unwrap_or_else(|e| {
-            eprintln!("Failed to write {}: {e}", path.display());
-            process::exit(1);
-        });
+    fs::write(path, serde_json::to_string_pretty(settings).unwrap()).unwrap_or_else(|e| {
+        eprintln!("Failed to write {}: {e}", path.display());
+        process::exit(1);
+    });
 }
 
 fn add_permissions(settings: &mut Value, allow: &[&str], deny: &[&str]) -> (usize, usize) {
     let obj = settings.as_object_mut().unwrap();
-    let perms_val = obj.entry("permissions").or_insert_with(|| serde_json::json!({}));
-    if !perms_val.is_object() { *perms_val = serde_json::json!({}); }
+    let perms_val = obj
+        .entry("permissions")
+        .or_insert_with(|| serde_json::json!({}));
+    if !perms_val.is_object() {
+        *perms_val = serde_json::json!({});
+    }
     let perms_obj = perms_val.as_object_mut().unwrap();
 
-    let allow_val = perms_obj.entry("allow").or_insert_with(|| serde_json::json!([]));
-    if !allow_val.is_array() { *allow_val = serde_json::json!([]); }
+    let allow_val = perms_obj
+        .entry("allow")
+        .or_insert_with(|| serde_json::json!([]));
+    if !allow_val.is_array() {
+        *allow_val = serde_json::json!([]);
+    }
     let allow_arr = allow_val.as_array_mut().unwrap();
     let mut allow_added = 0usize;
     for perm in allow {
@@ -435,8 +440,12 @@ fn add_permissions(settings: &mut Value, allow: &[&str], deny: &[&str]) -> (usiz
         }
     }
 
-    let deny_val = perms_obj.entry("deny").or_insert_with(|| serde_json::json!([]));
-    if !deny_val.is_array() { *deny_val = serde_json::json!([]); }
+    let deny_val = perms_obj
+        .entry("deny")
+        .or_insert_with(|| serde_json::json!([]));
+    if !deny_val.is_array() {
+        *deny_val = serde_json::json!([]);
+    }
     let deny_arr = deny_val.as_array_mut().unwrap();
     let mut deny_added = 0usize;
     for perm in deny {
@@ -476,12 +485,19 @@ fn permissions(cmd: PermissionsCommand) {
     let settings_path = cwd.join(".claude/settings.local.json");
 
     match cmd {
-        PermissionsCommand::Add { git, readonly, write } => {
+        PermissionsCommand::Add {
+            git,
+            readonly,
+            write,
+        } => {
             let interactive = !git && !readonly && !write;
 
             let add_git = git || (interactive && prompt_yn("Add git workflow permissions?"));
-            let add_readonly = readonly || (interactive && prompt_yn("Add read-only shell + file tool permissions?"));
-            let add_write = write || (interactive && prompt_yn("Add file editing permissions (Edit, Write, NotebookEdit)?"));
+            let add_readonly = readonly
+                || (interactive && prompt_yn("Add read-only shell + file tool permissions?"));
+            let add_write = write
+                || (interactive
+                    && prompt_yn("Add file editing permissions (Edit, Write, NotebookEdit)?"));
 
             if !add_git && !add_readonly && !add_write {
                 println!("No tiers selected.");
@@ -503,7 +519,8 @@ fn permissions(cmd: PermissionsCommand) {
                 println!("ok    git tier: {a} allow + {d} deny added");
             }
             if add_readonly {
-                let (a, d) = add_permissions(&mut settings, TIER_READONLY_ALLOW, TIER_READONLY_DENY);
+                let (a, d) =
+                    add_permissions(&mut settings, TIER_READONLY_ALLOW, TIER_READONLY_DENY);
                 total_allow += a;
                 total_deny += d;
                 println!("ok    readonly tier: {a} allow + {d} deny added");
@@ -516,7 +533,10 @@ fn permissions(cmd: PermissionsCommand) {
             }
 
             save_settings(&settings_path, &settings);
-            println!("ok    {} ({total_allow} allow + {total_deny} deny total)", settings_path.display());
+            println!(
+                "ok    {} ({total_allow} allow + {total_deny} deny total)",
+                settings_path.display()
+            );
         }
         PermissionsCommand::Remove => {
             if !settings_path.exists() {
@@ -526,12 +546,14 @@ fn permissions(cmd: PermissionsCommand) {
 
             let mut settings = load_settings(&settings_path);
 
-            let all_allow: Vec<&str> = TIER_GIT_ALLOW.iter()
+            let all_allow: Vec<&str> = TIER_GIT_ALLOW
+                .iter()
                 .chain(TIER_READONLY_ALLOW.iter())
                 .chain(TIER_WRITE_ALLOW.iter())
                 .copied()
                 .collect();
-            let all_deny: Vec<&str> = TIER_GIT_DENY.iter()
+            let all_deny: Vec<&str> = TIER_GIT_DENY
+                .iter()
                 .chain(TIER_READONLY_DENY.iter())
                 .chain(TIER_WRITE_DENY.iter())
                 .copied()
@@ -546,7 +568,10 @@ fn permissions(cmd: PermissionsCommand) {
                 println!("rm    {} (empty after cleanup)", settings_path.display());
             } else {
                 save_settings(&settings_path, &settings);
-                println!("ok    {} (agentic permissions removed)", settings_path.display());
+                println!(
+                    "ok    {} (agentic permissions removed)",
+                    settings_path.display()
+                );
             }
         }
     }
@@ -632,7 +657,9 @@ fn install() {
     let obj = settings.as_object_mut().unwrap();
 
     let env_val = obj.entry("env").or_insert_with(|| serde_json::json!({}));
-    if !env_val.is_object() { *env_val = serde_json::json!({}); }
+    if !env_val.is_object() {
+        *env_val = serde_json::json!({});
+    }
     let env_obj = env_val.as_object_mut().unwrap();
     env_obj.insert(
         "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS".into(),
@@ -646,12 +673,18 @@ fn install() {
     ];
 
     let hooks_val = obj.entry("hooks").or_insert_with(|| serde_json::json!({}));
-    if !hooks_val.is_object() { *hooks_val = serde_json::json!({}); }
+    if !hooks_val.is_object() {
+        *hooks_val = serde_json::json!({});
+    }
     let hooks_obj = hooks_val.as_object_mut().unwrap();
 
     for (event, matchers) in agentic_hooks {
-        let arr_val = hooks_obj.entry(*event).or_insert_with(|| serde_json::json!([]));
-        if !arr_val.is_array() { *arr_val = serde_json::json!([]); }
+        let arr_val = hooks_obj
+            .entry(*event)
+            .or_insert_with(|| serde_json::json!([]));
+        if !arr_val.is_array() {
+            *arr_val = serde_json::json!([]);
+        }
         let arr = arr_val.as_array_mut().unwrap();
 
         for matcher in *matchers {
@@ -749,9 +782,7 @@ fn uninstall() {
                     }
                 }
                 // Remove empty event arrays
-                hooks_obj.retain(|_, v| {
-                    v.as_array().is_none_or(|a| !a.is_empty())
-                });
+                hooks_obj.retain(|_, v| v.as_array().is_none_or(|a| !a.is_empty()));
                 // Remove hooks object entirely if empty
                 if hooks_obj.is_empty() {
                     obj.remove("hooks");
@@ -760,17 +791,23 @@ fn uninstall() {
             if let Some(env_obj) = obj.get_mut("env").and_then(Value::as_object_mut) {
                 env_obj.remove("CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS");
             }
-            if obj.get("env").and_then(Value::as_object).is_some_and(|e| e.is_empty()) {
+            if obj
+                .get("env")
+                .and_then(Value::as_object)
+                .is_some_and(|e| e.is_empty())
+            {
                 obj.remove("env");
             }
         }
         // Remove legacy agentic permissions from global settings
-        let all_allow: Vec<&str> = TIER_GIT_ALLOW.iter()
+        let all_allow: Vec<&str> = TIER_GIT_ALLOW
+            .iter()
             .chain(TIER_READONLY_ALLOW.iter())
             .chain(TIER_WRITE_ALLOW.iter())
             .copied()
             .collect();
-        let all_deny: Vec<&str> = TIER_GIT_DENY.iter()
+        let all_deny: Vec<&str> = TIER_GIT_DENY
+            .iter()
             .chain(TIER_READONLY_DENY.iter())
             .chain(TIER_WRITE_DENY.iter())
             .copied()
