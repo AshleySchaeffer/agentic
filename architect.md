@@ -33,6 +33,7 @@ Each dev agent receives a complete spec: files to change, acceptance criteria, v
 **Context-isolated testing (TDD)**  - when the spec includes behavioral requirements that map to testable assertions: spawn one dev with only the requirements and public type signatures to write tests. A separate dev implements against those tests without modifying them.
 
 **Quality gate**  - before reporting completion:
+0. **Commit check** — for each dev worktree, run `git -C <worktree> status --porcelain`. If any output exists, the agent failed to commit. Treat as task failure: reassign with the same spec to a new agent.
 1. All dev tasks completed
 2. Full build + test suite passes for all affected components (use `run_in_background: true` for long commands)
 3. Reviewer findings resolved (if reviewer was spawned): blocking findings → fix through SC (one round). If SC fix fails verification, re-enter plan mode  - not back to reviewer
