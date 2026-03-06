@@ -24,24 +24,6 @@ const AGENTS: &[(&str, &str)] = &[
     ("config-gen.md", include_str!("../agents/config-gen.md")),
 ];
 
-// Agent files from prior installs; cleaned up on install/uninstall.
-const LEGACY_AGENT_FILES: &[&str] = &[
-    "analyst.md",
-    "architect.md",
-    "auditor.md",
-    "challenger.md",
-    "qa.md",
-    "sign-off-protocol.md",
-    "worker-protocol.md",
-    "orchestration-rules.md",
-];
-
-// Root-level files from prior installs; cleaned up on install/uninstall.
-const LEGACY_ROOT_FILES: &[&str] = &[
-    "sign-off-protocol.md",
-    "worker-protocol.md",
-    "orchestration-rules.md",
-];
 
 const GLOBAL_CLAUDE_MD: &str = include_str!("../architect.md");
 const CODING_STANDARDS_MD: &str = include_str!("../coding-standards.md");
@@ -401,7 +383,7 @@ fn remove_permissions(settings: &mut Value, allow: &[&str], deny: &[&str]) {
 }
 
 fn permissions(cmd: PermissionsCommand) {
-    let cwd = env::current_dir().unwrap_or_default();
+    let cwd = env::current_dir().expect("cannot determine current directory");
     let settings_path = cwd.join(".claude/settings.local.json");
 
     match cmd {
@@ -512,28 +494,7 @@ fn install() {
     let agents_dir = claude_dir.join("agents");
     fs::create_dir_all(&agents_dir).unwrap();
     for (name, content) in AGENTS {
-        write_file(content, &agents_dir.join(name));
-    }
-
-    // Remove files from prior installs
-    for name in LEGACY_AGENT_FILES {
-        let path = claude_dir.join("agents").join(name);
-        if path.exists() {
-            if let Err(e) = fs::remove_file(&path) {
-                eprintln!("failed to remove {}: {e}", path.display());
-            }
-            println!("rm    {} (legacy)", path.display());
-        }
-    }
-    // Also clean standalone legacy files from the claude dir root
-    for name in LEGACY_ROOT_FILES {
-        let path = claude_dir.join(name);
-        if path.exists() {
-            if let Err(e) = fs::remove_file(&path) {
-                eprintln!("failed to remove {}: {e}", path.display());
-            }
-            println!("rm    {} (legacy)", path.display());
-        }
+        write_file_if_changed(content, &agents_dir.join(name));
     }
 
     // Global CLAUDE.md + coding-standards.md
@@ -551,15 +512,6 @@ fn install() {
             process::exit(1);
         });
         println!("ok    {}", bin_dst.display());
-    }
-
-    // Clean up old agentic-hooks binary
-    let old_bin = bin_dir.join("agentic-hooks");
-    if old_bin.exists() {
-        if let Err(e) = fs::remove_file(&old_bin) {
-            eprintln!("failed to remove {}: {e}", old_bin.display());
-        }
-        println!("rm    {} (renamed)", old_bin.display());
     }
 
     // Configure settings.json
@@ -598,11 +550,11 @@ fn install() {
         let arr = arr_val.as_array_mut().unwrap();
 
         for matcher in *matchers {
-            let dominated = arr.iter().any(|entry| {
+            let already_installed = arr.iter().any(|entry| {
                 entry.get("matcher").and_then(Value::as_str) == Some(matcher)
                     && is_agentic_hook(entry)
             });
-            if !dominated {
+            if !already_installed {
                 arr.push(serde_json::json!({
                     "matcher": matcher,
                     "hooks": [{ "type": "command", "command": "agentic" }]
@@ -627,25 +579,6 @@ fn uninstall() {
 
     for (name, _) in AGENTS {
         let path = claude_dir.join("agents").join(name);
-        if path.exists() {
-            if let Err(e) = fs::remove_file(&path) {
-                eprintln!("failed to remove {}: {e}", path.display());
-            }
-            println!("rm    {}", path.display());
-        }
-    }
-
-    for name in LEGACY_AGENT_FILES {
-        let path = claude_dir.join("agents").join(name);
-        if path.exists() {
-            if let Err(e) = fs::remove_file(&path) {
-                eprintln!("failed to remove {}: {e}", path.display());
-            }
-            println!("rm    {}", path.display());
-        }
-    }
-    for name in LEGACY_ROOT_FILES {
-        let path = claude_dir.join(name);
         if path.exists() {
             if let Err(e) = fs::remove_file(&path) {
                 eprintln!("failed to remove {}: {e}", path.display());
@@ -698,47 +631,23 @@ fn uninstall() {
                     obj.remove("hooks");
                 }
             }
-            if let Some(env_obj) = obj.get_mut("env").and_then(Value::as_object_mut) {
-                env_obj.remove("CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS");
-            }
-            if obj
-                .get("env")
-                .and_then(Value::as_object)
-                .is_some_and(|e| e.is_empty())
-            {
-                obj.remove("env");
-            }
         }
-        // Remove legacy agentic permissions from global settings
-        let all_allow: Vec<&str> = TIER_GIT_ALLOW
-            .iter()
-            .chain(TIER_READONLY_ALLOW.iter())
-            .chain(TIER_WRITE_ALLOW.iter())
-            .copied()
-            .collect();
-        let all_deny: Vec<&str> = TIER_GIT_DENY
-            .iter()
-            .chain(TIER_READONLY_DENY.iter())
-            .chain(TIER_WRITE_DENY.iter())
-            .copied()
-            .collect();
-        remove_permissions(&mut settings, &all_allow, &all_deny);
-        let _ = fs::write(
+        fs::write(
             &settings_path,
             serde_json::to_string_pretty(&settings).unwrap(),
-        );
+        )
+        .unwrap_or_else(|e| {
+            eprintln!("Failed to write {}: {e}", settings_path.display());
+        });
         println!("ok    {} (hooks removed)", settings_path.display());
     }
 
-    // Remove both current and old binary names
-    for name in &["agentic", "agentic-hooks"] {
-        let bin = home.join(".local/bin").join(name);
-        if bin.exists() {
-            if let Err(e) = fs::remove_file(&bin) {
-                eprintln!("failed to remove {}: {e}", bin.display());
-            }
-            println!("rm    {}", bin.display());
+    let bin = home.join(".local/bin").join("agentic");
+    if bin.exists() {
+        if let Err(e) = fs::remove_file(&bin) {
+            eprintln!("failed to remove {}: {e}", bin.display());
         }
+        println!("rm    {}", bin.display());
     }
 
     println!("\nUninstall complete.");

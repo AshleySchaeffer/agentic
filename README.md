@@ -31,7 +31,22 @@ Installs to `~/.claude/`:
 | hooks binary | `~/.local/bin/agentic` | 2 hooks compiled to a single binary |
 | settings.json | `~/.claude/settings.json` | Hook matchers |
 
-To manage project-local permissions: `agentic permissions add`
+### Permissions
+
+`agentic permissions` manages project-local permissions in `.claude/settings.local.json`. Three tiers, applied additively:
+
+| Tier | Flag | What it allows |
+|---|---|---|
+| git | `--git` | `git status`, `diff`, `log`, `add`, `commit`, `merge`, `branch`, `worktree`, `stash`, `checkout`, `rev-parse` |
+| readonly | `--readonly` | Read-only shell commands (`ls`, `cat`, `find`, etc.), `Read`, `Glob`, `Grep` |
+| write | `--write` | `Edit`, `Write`, `NotebookEdit` |
+
+```bash
+agentic permissions add              # Interactive — prompts for each tier
+agentic permissions add --git --readonly --write  # Non-interactive — all tiers
+agentic permissions remove           # Remove all agentic-managed permissions
+```
+
 To uninstall: `agentic uninstall`
 
 ## Architecture
