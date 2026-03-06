@@ -307,46 +307,101 @@ fn planning_protocol() {
     serde_json::to_writer(io::stdout(), &output).ok();
 }
 
+/// Walks up from `start`, returning the directory that contains `.git` (file or directory),
+/// or `None` if no git root is found.
+fn find_git_root(start: &Path) -> Option<PathBuf> {
+    let mut current = start;
+    loop {
+        if current.join(".git").exists() {
+            return Some(current.to_path_buf());
+        }
+        current = current.parent()?;
+    }
+}
+
 /// Hook 4: Session Start — Bootstrap
 /// Ensures @project-config.md reference in project CLAUDE.md and prompts config-gen agent if project-config.md is missing.
 fn session_start(hook: &HookInput) {
     let cwd = Path::new(&hook.cwd);
 
     // Check for git repo — worktree isolation requires one
-    if !cwd.join(".git").exists() {
-        debug!("not a git repo — injecting git init prompt");
-        let output = serde_json::json!({
-            "hookSpecificOutput": {
-                "hookEventName": "SessionStart",
-                "additionalContext": "This directory is not a git repository. \
-                    Dev agents require worktree isolation, which needs git. \
-                    Use AskUserQuestion to ask the user: \
-                    option 1: 'Initialize git repo' — run `git init` and create an initial commit, then proceed normally. \
-                    option 2: 'Bail' — stop and let the user handle it. \
-                    The user can also free-type a response."
-            }
-        });
-        serde_json::to_writer(io::stdout(), &output).ok();
-        return;
-    }
+    match find_git_root(cwd) {
+        None => {
+            debug!("not a git repo — injecting git init prompt");
+            let output = serde_json::json!({
+                "hookSpecificOutput": {
+                    "hookEventName": "SessionStart",
+                    "additionalContext": "This directory is not a git repository. \
+                        Dev agents require worktree isolation, which needs git. \
+                        Use AskUserQuestion to ask the user: \
+                        option 1: 'Initialize git repo' — run `git init` and create an initial commit, then proceed normally. \
+                        option 2: 'Bail' — stop and let the user handle it. \
+                        The user can also free-type a response."
+                }
+            });
+            serde_json::to_writer(io::stdout(), &output).ok();
+        }
+        Some(root) if root != cwd => {
+            let relative = cwd.strip_prefix(&root).unwrap_or(cwd);
+            debug!(
+                "nested project: git root at {}, subdir {}",
+                root.display(),
+                relative.display()
+            );
 
-    let claude_md = cwd.join("CLAUDE.md");
-    let config_path = cwd.join("project-config.md");
+            let claude_md = cwd.join("CLAUDE.md");
+            let config_path = cwd.join("project-config.md");
 
-    // Ensure @project-config.md reference in project CLAUDE.md
-    ensure_config_ref(&claude_md);
+            ensure_config_ref(&claude_md);
 
-    // Bootstrap project-config.md if missing — delegate to config-gen agent
-    if !config_path.exists() {
-        debug!("project-config.md missing — prompting config-gen agent spawn");
-        let output = serde_json::json!({
-            "hookSpecificOutput": {
-                "hookEventName": "SessionStart",
-                "additionalContext": "project-config.md does not exist. \
+            let nested_warning = format!(
+                "NESTED PROJECT DETECTED: \
+                The git root is at {root}. \
+                The project directory is {relative} within the repo. \
+                Worktrees will be rooted at the git root, so every dev agent spec must include \
+                `cd {relative}` as its first step. Run verification commands from that subdirectory too.",
+                root = root.display(),
+                relative = relative.display(),
+            );
+
+            let additional_context = if !config_path.exists() {
+                debug!("project-config.md missing — prompting config-gen agent spawn");
+                format!(
+                    "{nested_warning}\n\n\
+                    project-config.md does not exist. \
                     Spawn the config-gen agent to scan this project and generate it before proceeding."
+                )
+            } else {
+                nested_warning
+            };
+
+            let output = serde_json::json!({
+                "hookSpecificOutput": {
+                    "hookEventName": "SessionStart",
+                    "additionalContext": additional_context
+                }
+            });
+            serde_json::to_writer(io::stdout(), &output).ok();
+        }
+        Some(_) => {
+            // cwd is the git root — proceed normally
+            let claude_md = cwd.join("CLAUDE.md");
+            let config_path = cwd.join("project-config.md");
+
+            ensure_config_ref(&claude_md);
+
+            if !config_path.exists() {
+                debug!("project-config.md missing — prompting config-gen agent spawn");
+                let output = serde_json::json!({
+                    "hookSpecificOutput": {
+                        "hookEventName": "SessionStart",
+                        "additionalContext": "project-config.md does not exist. \
+                            Spawn the config-gen agent to scan this project and generate it before proceeding."
+                    }
+                });
+                serde_json::to_writer(io::stdout(), &output).ok();
             }
-        });
-        serde_json::to_writer(io::stdout(), &output).ok();
+        }
     }
 }
 

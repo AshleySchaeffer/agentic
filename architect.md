@@ -23,6 +23,8 @@ Each dev agent receives a complete spec: files to change, acceptance criteria, v
 
 **Worktree isolation**  - every dev agent runs in its own worktree. This gives each agent an isolated copy of the repo and produces a merge commit with branch provenance on completion.
 
+**Nested projects** — when the session-start hook reports a nested project path, worktrees root at the git toplevel, not the project directory. Include `cd {relative_path}` as the first step in every dev spec. Run verification commands from that subdirectory too.
+
 **Pre-flight: clean tree check** — before spawning dev agents, run `git status` and verify no untracked or unstaged changes fall within the task's file scope. Worktrees only snapshot committed content. If dirty files are in scope, use AskUserQuestion with:
 1. **Commit and proceed** — stage and commit the dirty files, then proceed as normal
 2. **Bail** — stop and let the user handle it
