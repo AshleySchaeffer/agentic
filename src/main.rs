@@ -20,8 +20,6 @@ macro_rules! debug {
 
 const SIZE_THRESHOLD: usize = 4096;
 const CODE_HEAVY_THRESHOLD: usize = 2048;
-const CONFIG_REF: &str = "@project-config.md";
-
 // ── Embedded content ─────────────────────────────────────────────────
 
 const AGENTS: &[(&str, &str)] = &[
@@ -193,7 +191,7 @@ fn hook_dispatch() {
         }
         ("PreToolUse", "EnterPlanMode") => {
             debug!("{} {} → planning_protocol", hook.hook_event_name, tool);
-            planning_protocol();
+            planning_protocol(&hook);
         }
         ("SessionStart", _) => {
             debug!("{} {} → session_start", hook.hook_event_name, tool);
@@ -294,14 +292,28 @@ fn agent_accept_edits(hook: &HookInput) {
 }
 
 /// Hook 3: Adaptive Planning Protocol
-/// Injects the full planning protocol as additionalContext when plan mode is entered.
-fn planning_protocol() {
-    debug!("injecting planning protocol");
+/// Injects the full planning protocol + project-config.md as additionalContext when plan mode is entered.
+fn planning_protocol(hook: &HookInput) {
+    let cwd = Path::new(&hook.cwd);
+    let config_path = cwd.join("project-config.md");
+
+    let additional_context = if let Ok(config) = fs::read_to_string(&config_path) {
+        debug!("injecting planning protocol + project config");
+        format!("{PLANNING_PROTOCOL}\n\n{config}")
+    } else {
+        debug!("injecting planning protocol (no project-config.md)");
+        format!(
+            "{PLANNING_PROTOCOL}\n\n\
+            project-config.md does not exist in this project. \
+            If this task requires build/test/verification commands, \
+            spawn the config-gen agent to generate project-config.md before converging to spec."
+        )
+    };
 
     let output = serde_json::json!({
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",
-            "additionalContext": PLANNING_PROTOCOL
+            "additionalContext": additional_context
         }
     });
     serde_json::to_writer(io::stdout(), &output).ok();
@@ -320,7 +332,7 @@ fn find_git_root(start: &Path) -> Option<PathBuf> {
 }
 
 /// Hook 4: Session Start — Bootstrap
-/// Ensures @project-config.md reference in project CLAUDE.md and prompts config-gen agent if project-config.md is missing.
+/// Checks for git repo (prompts init if missing) and nested project detection (asks user to proceed or bail).
 fn session_start(hook: &HookInput) {
     let cwd = Path::new(&hook.cwd);
 
@@ -349,31 +361,16 @@ fn session_start(hook: &HookInput) {
                 relative.display()
             );
 
-            let claude_md = cwd.join("CLAUDE.md");
-            let config_path = cwd.join("project-config.md");
-
-            ensure_config_ref(&claude_md);
-
-            let nested_warning = format!(
-                "NESTED PROJECT DETECTED: \
-                The git root is at {root}. \
-                The project directory is {relative} within the repo. \
-                Worktrees will be rooted at the git root, so every dev agent spec must include \
-                `cd {relative}` as its first step. Run verification commands from that subdirectory too.",
+            let additional_context = format!(
+                "NESTED PROJECT DETECTED: The git root is at {root}, but you're working in {relative} within the repo. \
+                Worktrees will clone the entire repo from the git root. \
+                Use AskUserQuestion to ask the user: \
+                option 1: 'Proceed' — continue working in this subdirectory (worktrees will include the full repo, specs will include `cd {relative}`). \
+                option 2: 'Bail' — stop and let the user handle it. \
+                The user can also free-type a response.",
                 root = root.display(),
                 relative = relative.display(),
             );
-
-            let additional_context = if !config_path.exists() {
-                debug!("project-config.md missing — prompting config-gen agent spawn");
-                format!(
-                    "{nested_warning}\n\n\
-                    project-config.md does not exist. \
-                    Spawn the config-gen agent to scan this project and generate it before proceeding."
-                )
-            } else {
-                nested_warning
-            };
 
             let output = serde_json::json!({
                 "hookSpecificOutput": {
@@ -384,40 +381,9 @@ fn session_start(hook: &HookInput) {
             serde_json::to_writer(io::stdout(), &output).ok();
         }
         Some(_) => {
-            // cwd is the git root — proceed normally
-            let claude_md = cwd.join("CLAUDE.md");
-            let config_path = cwd.join("project-config.md");
-
-            ensure_config_ref(&claude_md);
-
-            if !config_path.exists() {
-                debug!("project-config.md missing — prompting config-gen agent spawn");
-                let output = serde_json::json!({
-                    "hookSpecificOutput": {
-                        "hookEventName": "SessionStart",
-                        "additionalContext": "project-config.md does not exist. \
-                            Spawn the config-gen agent to scan this project and generate it before proceeding."
-                    }
-                });
-                serde_json::to_writer(io::stdout(), &output).ok();
-            }
+            // cwd is the git root — no-op
+            debug!("git root matches cwd — no action needed");
         }
-    }
-}
-
-fn ensure_config_ref(claude_md: &Path) {
-    let content = fs::read_to_string(claude_md).unwrap_or_default();
-    if content.lines().any(|l| l.trim() == CONFIG_REF) {
-        return;
-    }
-    debug!("adding @project-config.md to {}", claude_md.display());
-    let new_content = if content.is_empty() {
-        format!("{CONFIG_REF}\n")
-    } else {
-        format!("{content}\n{CONFIG_REF}\n")
-    };
-    if let Err(e) = fs::write(claude_md, new_content) {
-        eprintln!("failed to write {}: {e}", claude_md.display());
     }
 }
 

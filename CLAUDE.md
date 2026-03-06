@@ -44,8 +44,8 @@ Single binary (`src/main.rs`) serves four roles via CLI dispatch:
 |---|---|---|
 | `message_transform` | PreToolUse/SendMessage | Offloads messages >4KB (>2KB if code-heavy) to `.claude/messages/` |
 | `agent_accept_edits` | PreToolUse/Agent | Forces `acceptEdits` permission mode |
-| `planning_protocol` | PreToolUse/EnterPlanMode | Injects planning protocol as `additionalContext` |
-| `session_start` | SessionStart | Ensures `@project-config.md` in project CLAUDE.md, prompts config-gen agent if project-config.md is missing |
+| `planning_protocol` | PreToolUse/EnterPlanMode | Injects planning protocol + project-config.md contents as `additionalContext` |
+| `session_start` | SessionStart | Checks for git repo (prompts init if missing) and nested project detection (asks user to proceed or bail) |
 
 ### Key design constraints
 
@@ -53,6 +53,4 @@ Single binary (`src/main.rs`) serves four roles via CLI dispatch:
 - Uninstall removes only agentic-owned entries (matched by `"command": "agentic"`)
 - `LEGACY_REFS` array tracks filenames from prior versions for cleanup on install/uninstall
 - `planning-protocol.md` is never written to disk  - it exists only as a compiled-in string injected via hook context
-- `ensure_config_ref` helper in `session_start` ensures `@project-config.md` reference in the project's CLAUDE.md
-
-@project-config.md
+- project-config.md is injected into planning context via the EnterPlanMode hook, not via CLAUDE.md references

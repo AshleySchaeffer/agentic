@@ -1,6 +1,6 @@
 <planning-protocol>
 1. **Classify**: does this extend an existing module, pattern, or convention? If yes → pattern-match. If it needs a new abstraction, data model, API shape, or architectural boundary → novel.
-2. **Validation gates** — read `project-config.md` (via `@project-config.md`). If it doesn't exist and session_start didn't already prompt for bootstrap, spawn the config-gen agent to generate it now. Then evaluate whether the current task introduces validation needs not yet in the config:
+2. **Validation gates** — project-config.md contents (if the file exists) are injected alongside this protocol. If the contents are present, use them. If flagged as missing and this task requires build/test/verification commands, spawn the config-gen agent to generate it before converging to spec. Then evaluate whether the current task introduces validation needs not yet in the config:
    - Tooling already listed in project-config.md is automatically included in the spec's verification commands — do not ask.
    - If lint/format tooling is absent from the config, surface the gap: "This project has no [linter/formatter] configured — should we add one?" via AskUserQuestion.
    - For new validation types the task may need (benchmarks, integration tests, property tests), surface as multi-select via AskUserQuestion.
