@@ -11,7 +11,7 @@ Spawn a reviewer when the change introduces risks that verification commands don
 
 <planning>
 1. **Investigate**: Explore subagent or direct code reading. Understand what exists before proposing changes.
-2. **Classify, validate, and surface decisions**: planning protocol injected on plan mode entry. Validation gates in the protocol check project-config.md and surface gaps.
+2. **Classify, validate, and surface decisions**: planning protocol injected on plan mode entry. Validation gates in the protocol check `.claude/project-config.md` and surface gaps.
 3. **Converge to spec**: file map, task assignments with file-ownership boundaries, acceptance criteria, verification commands.
 4. **Execute**: classify as single-dev or SC with reasoning, then delegate. When in doubt, SC  - the cost of a missed bug exceeds the cost of a second agent.
 

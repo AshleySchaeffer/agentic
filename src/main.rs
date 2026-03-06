@@ -292,21 +292,21 @@ fn agent_accept_edits(hook: &HookInput) {
 }
 
 /// Hook 3: Adaptive Planning Protocol
-/// Injects the full planning protocol + project-config.md as additionalContext when plan mode is entered.
+/// Injects the full planning protocol + .claude/project-config.md as additionalContext when plan mode is entered.
 fn planning_protocol(hook: &HookInput) {
     let cwd = Path::new(&hook.cwd);
-    let config_path = cwd.join("project-config.md");
+    let config_path = cwd.join(".claude/project-config.md");
 
     let additional_context = if let Ok(config) = fs::read_to_string(&config_path) {
         debug!("injecting planning protocol + project config");
         format!("{PLANNING_PROTOCOL}\n\n{config}")
     } else {
-        debug!("injecting planning protocol (no project-config.md)");
+        debug!("injecting planning protocol (no .claude/project-config.md)");
         format!(
             "{PLANNING_PROTOCOL}\n\n\
-            project-config.md does not exist in this project. \
+            .claude/project-config.md does not exist in this project. \
             If this task requires build/test/verification commands, \
-            spawn the config-gen agent to generate project-config.md before converging to spec."
+            spawn the config-gen agent to generate .claude/project-config.md before converging to spec."
         )
     };
 
