@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-**Agentic**  - a Claude Code multi-agent configuration. Three agents (dev on Sonnet, reviewer on Opus, config-gen on Haiku), three hooks compiled into one binary, and an architect protocol installed as a global CLAUDE.md. See README.md for rationale and design decisions.
+**Agentic**  - a Claude Code multi-agent configuration. Three agents (dev on Sonnet, reviewer on Opus, config-gen on Haiku), two hooks compiled into one binary, and an architect protocol installed as a global CLAUDE.md. See README.md for rationale and design decisions.
 
 ## Build & Install
 
@@ -22,7 +22,7 @@ Debug hooks: `AGENTIC_DEBUG=1 echo '{"hook_event_name":"...","tool_name":"...","
 
 Single binary (`src/main.rs`) serves four roles via CLI dispatch:
 
-1. **Hook handler** (no subcommand)  - reads JSON from stdin, dispatches by `(hook_event_name, tool_name)` tuple to one of three handlers
+1. **Hook handler** (no subcommand)  - reads JSON from stdin, dispatches by `(hook_event_name, tool_name)` tuple to one of two handlers
 2. **`install`**  - embeds all config files at compile time via `include_str!`, writes them to `~/.claude/`, copies self to `~/.local/bin/agentic`, merges hook entries into `~/.claude/settings.json`
 3. **`uninstall`**  - reverse of install, preserving non-agentic user hooks
 4. **`permissions`**  - manages project-local permissions in `.claude/settings.local.json` with 3 tiers (git, readonly, write)
@@ -42,7 +42,6 @@ Single binary (`src/main.rs`) serves four roles via CLI dispatch:
 
 | Handler | Trigger | Behavior |
 |---|---|---|
-| `message_transform` | PreToolUse/SendMessage | Intentionally dormant — reserved for future Agent Teams work. Do not remove. |
 | `planning_protocol` | PreToolUse/EnterPlanMode | Injects planning protocol + `.claude/project-config.md` contents as `additionalContext` |
 | `session_start` | SessionStart | Checks for git repo (prompts init if missing) and nested project detection (asks user to proceed or bail) |
 

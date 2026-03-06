@@ -176,10 +176,6 @@ fn hook_dispatch() {
     let tool = hook.tool_name.as_deref().unwrap_or("");
 
     match (hook.hook_event_name.as_str(), tool) {
-        ("PreToolUse", "SendMessage") => {
-            debug!("{} {} → message_transform", hook.hook_event_name, tool);
-            message_transform(&hook);
-        }
         ("PreToolUse", "EnterPlanMode") => {
             debug!("{} {} → planning_protocol", hook.hook_event_name, tool);
             planning_protocol(&hook);
@@ -194,14 +190,7 @@ fn hook_dispatch() {
     }
 }
 
-/// Intentionally dormant — reserved for future Agent Teams work. Do not remove.
-/// Hook 1: Message Transform
-/// Offloads large messages to disk to keep context lean.
-fn message_transform(_hook: &HookInput) {
-    // Reserved for future Agent Teams work. No-op until activated.
-}
-
-/// Hook 2: Adaptive Planning Protocol
+/// Hook 1: Adaptive Planning Protocol
 /// Injects the full planning protocol + .claude/project-config.md as additionalContext when plan mode is entered.
 fn planning_protocol(hook: &HookInput) {
     let cwd = Path::new(&hook.cwd);
@@ -241,7 +230,7 @@ fn find_git_root(start: &Path) -> Option<PathBuf> {
     }
 }
 
-/// Hook 3: Session Start — Bootstrap
+/// Hook 2: Session Start — Bootstrap
 /// Checks for git repo (prompts init if missing) and nested project detection (asks user to proceed or bail).
 fn session_start(hook: &HookInput) {
     let cwd = Path::new(&hook.cwd);
@@ -589,7 +578,7 @@ fn install() {
 
     // Merge agentic hooks into existing config (preserve user hooks)
     let agentic_hooks: &[(&str, &[&str])] = &[
-        ("PreToolUse", &["SendMessage", "EnterPlanMode"]),
+        ("PreToolUse", &["EnterPlanMode"]),
         ("SessionStart", &["startup"]),
     ];
 
