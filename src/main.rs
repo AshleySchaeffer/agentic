@@ -1,8 +1,6 @@
 use clap::{Parser, Subcommand};
-use memchr::memmem;
 use serde::Deserialize;
 use serde_json::Value;
-use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 use std::{env, fs, io, process};
@@ -18,8 +16,6 @@ macro_rules! debug {
     };
 }
 
-const SIZE_THRESHOLD: usize = 4096;
-const CODE_HEAVY_THRESHOLD: usize = 2048;
 // ── Embedded content ─────────────────────────────────────────────────
 
 const AGENTS: &[(&str, &str)] = &[
@@ -163,7 +159,6 @@ fn main() {
 struct HookInput {
     hook_event_name: String,
     tool_name: Option<String>,
-    tool_input: Option<Value>,
     cwd: String,
 }
 
@@ -185,10 +180,6 @@ fn hook_dispatch() {
             debug!("{} {} → message_transform", hook.hook_event_name, tool);
             message_transform(&hook);
         }
-        ("PreToolUse", "Agent") => {
-            debug!("{} {} → agent_accept_edits", hook.hook_event_name, tool);
-            agent_accept_edits(&hook);
-        }
         ("PreToolUse", "EnterPlanMode") => {
             debug!("{} {} → planning_protocol", hook.hook_event_name, tool);
             planning_protocol(&hook);
@@ -203,95 +194,14 @@ fn hook_dispatch() {
     }
 }
 
+/// Intentionally dormant — reserved for future Agent Teams work. Do not remove.
 /// Hook 1: Message Transform
-/// Intercepts large SendMessage payloads, writes content to disk,
-/// replaces the message body with a file reference.
-fn message_transform(hook: &HookInput) {
-    let input = match &hook.tool_input {
-        Some(v) => v,
-        None => return,
-    };
-
-    let content = match input.get("content").and_then(Value::as_str) {
-        Some(s) => s,
-        None => return,
-    };
-
-    let bytes = content.as_bytes();
-    let code_fences = memmem::find_iter(bytes, b"```").count();
-    let threshold = if code_fences >= 2 {
-        CODE_HEAVY_THRESHOLD
-    } else {
-        SIZE_THRESHOLD
-    };
-
-    if bytes.len() <= threshold {
-        debug!("skip: {} bytes ≤ {threshold} threshold", bytes.len());
-        return;
-    }
-
-    let dir = Path::new(&hook.cwd).join(".claude/messages");
-    if let Err(e) = fs::create_dir_all(&dir) {
-        eprintln!("failed to create {}: {e}", dir.display());
-        return;
-    }
-
-    let hash = Sha256::digest(bytes);
-    let name: String = hash.iter().take(8).map(|b| format!("{b:02x}")).collect();
-    let path = dir.join(format!("{name}.md"));
-
-    if let Err(e) = fs::write(&path, content) {
-        eprintln!("failed to write {}: {e}", path.display());
-        return;
-    }
-
-    debug!("offloaded {} bytes → {}", bytes.len(), path.display());
-
-    let summary = input
-        .get("summary")
-        .and_then(Value::as_str)
-        .unwrap_or("(see file)");
-    let mut updated = input.clone();
-    updated["content"] = Value::String(format!(
-        "[Content offloaded to {} ({} bytes). Summary: {summary}]",
-        path.display(),
-        bytes.len(),
-    ));
-
-    let output = serde_json::json!({
-        "hookSpecificOutput": {
-            "hookEventName": "PreToolUse",
-            "permissionDecision": "allow",
-            "updatedInput": updated
-        }
-    });
-    serde_json::to_writer(io::stdout(), &output).ok();
+/// Offloads large messages to disk to keep context lean.
+fn message_transform(_hook: &HookInput) {
+    // Reserved for future Agent Teams work. No-op until activated.
 }
 
-/// Hook 2: Agent Accept Edits
-/// Forces acceptEdits permission mode on all agent spawns.
-fn agent_accept_edits(hook: &HookInput) {
-    let input = match &hook.tool_input {
-        Some(v) => v,
-        None => return,
-    };
-
-    let mut updated = input.clone();
-    updated["permissionMode"] = Value::String("acceptEdits".into());
-
-    debug!("forcing acceptEdits on Agent spawn");
-
-    let output = serde_json::json!({
-        "hookSpecificOutput": {
-            "hookEventName": "PreToolUse",
-            "permissionDecision": "allow",
-            "updatedInput": updated
-        }
-    });
-    serde_json::to_writer(io::stdout(), &output).ok();
-}
-
-/// Hook 3: Adaptive Planning Protocol
+/// Hook 2: Adaptive Planning Protocol
 /// Injects the full planning protocol + .claude/project-config.md as additionalContext when plan mode is entered.
 fn planning_protocol(hook: &HookInput) {
     let cwd = Path::new(&hook.cwd);
@@ -331,7 +241,7 @@ fn find_git_root(start: &Path) -> Option<PathBuf> {
     }
 }
 
-/// Hook 4: Session Start — Bootstrap
+/// Hook 3: Session Start — Bootstrap
 /// Checks for git repo (prompts init if missing) and nested project detection (asks user to proceed or bail).
 fn session_start(hook: &HookInput) {
     let cwd = Path::new(&hook.cwd);
@@ -677,19 +587,9 @@ fn install() {
 
     let obj = settings.as_object_mut().unwrap();
 
-    let env_val = obj.entry("env").or_insert_with(|| serde_json::json!({}));
-    if !env_val.is_object() {
-        *env_val = serde_json::json!({});
-    }
-    let env_obj = env_val.as_object_mut().unwrap();
-    env_obj.insert(
-        "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS".into(),
-        Value::String("1".into()),
-    );
-
     // Merge agentic hooks into existing config (preserve user hooks)
     let agentic_hooks: &[(&str, &[&str])] = &[
-        ("PreToolUse", &["SendMessage", "Agent", "EnterPlanMode"]),
+        ("PreToolUse", &["SendMessage", "EnterPlanMode"]),
         ("SessionStart", &["startup"]),
     ];
 

@@ -1,6 +1,7 @@
 ---
 name: reviewer
 model: opus
+permissionMode: acceptEdits
 description: "Focused review for high-stakes changes. Runs automated checks first, then reviews semantic concerns against a task-specific checklist."
 ---
 

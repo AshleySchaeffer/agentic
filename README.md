@@ -1,6 +1,6 @@
 # Agentic
 
-A Claude Code multi-agent configuration. Three agents, four hooks, one CLAUDE.md under 120 lines.
+A Claude Code multi-agent configuration. Three agents, three hooks, one CLAUDE.md under 120 lines.
 
 ## Why
 
@@ -28,8 +28,8 @@ Installs to `~/.claude/`:
 | dev agent | `~/.claude/agents/dev.md` | Sonnet  - implements against complete specs |
 | reviewer agent | `~/.claude/agents/reviewer.md` | Opus  - focused review with task-specific checklist |
 | config-gen agent | `~/.claude/agents/config-gen.md` | Haiku  - scans project and generates project-config.md |
-| hooks binary | `~/.local/bin/agentic` | 4 hooks compiled to a single binary |
-| settings.json | `~/.claude/settings.json` | Hook matchers + agent teams flag |
+| hooks binary | `~/.local/bin/agentic` | 3 hooks compiled to a single binary |
+| settings.json | `~/.claude/settings.json` | Hook matchers |
 
 To manage project-local permissions: `agentic permissions add`
 To uninstall: `agentic uninstall`
@@ -67,12 +67,11 @@ Agents are task-oriented, not role-bound. A dev receives a scoped task (files, c
 
 | # | Trigger | What it does |
 |---|---|---|
-| 1 | PreToolUse/SendMessage | Offloads large messages (>4KB, >2KB with code) to disk, replaces with file reference. **Dormant** — only fires when Agent Teams are in use; present to enable future Agent Teams work |
-| 2 | PreToolUse/Agent | Forces `acceptEdits` mode on all agent spawns |
-| 3 | PreToolUse/EnterPlanMode | Injects adaptive planning protocol (pattern-match vs novel classification) |
-| 4 | SessionStart | Ensures `@project-config.md` in project CLAUDE.md, bootstraps project-config.md if missing |
+| 1 | PreToolUse/SendMessage | Intentionally dormant — reserved for future Agent Teams work |
+| 2 | PreToolUse/EnterPlanMode | Injects adaptive planning protocol (pattern-match vs novel classification) |
+| 3 | SessionStart | Checks for git repo (prompts init if missing) and nested project detection |
 
-Hooks enforce what prompts cannot guarantee ([real-world verification outperforms LLM-on-LLM review](https://arxiv.org/abs/2311.17371)). Hook 3 is zero-cost  - the planning protocol lives in the binary and is injected only when plan mode is entered, keeping CLAUDE.md lean.
+Hooks enforce what prompts cannot guarantee ([real-world verification outperforms LLM-on-LLM review](https://arxiv.org/abs/2311.17371)). Hook 2 is zero-cost  - the planning protocol lives in the binary and is injected only when plan mode is entered, keeping CLAUDE.md lean.
 
 ## Design Decisions
 
@@ -92,9 +91,9 @@ Hooks enforce what prompts cannot guarantee ([real-world verification outperform
 ```
 architect.md               # Architect protocol → ~/.claude/CLAUDE.md
 coding-standards.md        # Full standards (progressive disclosure)
-planning-protocol.md       # Planning protocol (injected via hook 3)
+planning-protocol.md       # Planning protocol (injected via hook 1)
 Cargo.toml                 # Binary: agentic
-src/main.rs                # 4 hooks + install/uninstall/permissions
+src/main.rs                # 3 hooks + install/uninstall/permissions
 agents/
   dev.md                   # Implementation agent (Sonnet)
   reviewer.md              # Review agent (Opus, high-stakes only)

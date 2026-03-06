@@ -1,6 +1,7 @@
 ---
 name: config-gen
 model: haiku
+permissionMode: acceptEdits
 description: "Scans a project and generates or updates .claude/project-config.md based on actual tooling in use."
 ---
 
