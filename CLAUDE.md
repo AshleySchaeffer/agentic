@@ -49,6 +49,5 @@ Single binary (`src/main.rs`) serves four roles via CLI dispatch:
 
 - Install must be idempotent and preserve existing user hooks in `settings.json`
 - Uninstall removes only agentic-owned entries (matched by `"command": "agentic"`)
-- `LEGACY_AGENT_FILES` and `LEGACY_ROOT_FILES` arrays track filenames from prior versions for cleanup on install/uninstall
 - `planning-protocol.md` is never written to disk  - it exists only as a compiled-in string injected via hook context
 - `.claude/project-config.md` is injected into planning context via the EnterPlanMode hook, not via CLAUDE.md references
