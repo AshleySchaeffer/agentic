@@ -173,6 +173,10 @@ fn hook_dispatch() {
             debug!("{} {} → agent_spawn", hook.hook_event_name, tool);
             agent_spawn(&hook);
         }
+        ("PreToolUse", "Bash") => {
+            debug!("{} {} → merge_guard", hook.hook_event_name, tool);
+            merge_guard(&hook);
+        }
         ("SubagentStop", _) => {
             debug!("{} {} → dev_stop", hook.hook_event_name, tool);
             dev_stop(&hook);
@@ -245,7 +249,70 @@ fn agent_spawn(hook: &HookInput) {
     serde_json::to_writer(io::stdout(), &output).ok();
 }
 
-/// Hook 3: Dev Stop — blocks exit if work isn't clean.
+/// Hook 3: Merge Guard — blocks `git merge` when the branch has a stale base.
+/// Prevents merging worktree branches that diverged from an older HEAD.
+fn merge_guard(hook: &HookInput) {
+    let command = hook
+        .tool_input
+        .as_ref()
+        .and_then(|v| v.get("command"))
+        .and_then(Value::as_str)
+        .unwrap_or("");
+
+    if !command.contains("git merge") {
+        return;
+    }
+
+    // Extract branch name: last non-flag argument after "merge"
+    let parts: Vec<&str> = command.split_whitespace().collect();
+    let merge_idx = match parts.iter().position(|&p| p == "merge") {
+        Some(i) => i,
+        None => return,
+    };
+    let branch = match parts[merge_idx + 1..]
+        .iter()
+        .rev()
+        .find(|&&p| !p.starts_with('-'))
+    {
+        Some(b) => *b,
+        None => return,
+    };
+
+    let cwd = &hook.cwd;
+
+    let merge_base = std::process::Command::new("git")
+        .args(["merge-base", branch, "HEAD"])
+        .current_dir(cwd)
+        .output();
+
+    let head = std::process::Command::new("git")
+        .args(["rev-parse", "HEAD"])
+        .current_dir(cwd)
+        .output();
+
+    match (merge_base, head) {
+        (Ok(mb), Ok(h)) if mb.status.success() && h.status.success() => {
+            let mb_hash = String::from_utf8_lossy(&mb.stdout).trim().to_string();
+            let head_hash = String::from_utf8_lossy(&h.stdout).trim().to_string();
+
+            if mb_hash != head_hash {
+                eprintln!(
+                    "BLOCKED: Branch '{branch}' diverged from {mb_short} but HEAD is now {head_short}. \
+                    This worktree branched from a stale HEAD. Delete the worktree and re-spawn the agent.",
+                    mb_short = &mb_hash[..mb_hash.len().min(8)],
+                    head_short = &head_hash[..head_hash.len().min(8)],
+                );
+                process::exit(2);
+            }
+            debug!("merge_guard: merge-base matches HEAD — merge is safe");
+        }
+        _ => {
+            debug!("merge_guard: could not determine merge-base — allowing merge");
+        }
+    }
+}
+
+/// Hook 4: Dev Stop — blocks exit if work isn't clean.
 fn dev_stop(hook: &HookInput) {
     let cwd = &hook.cwd;
 
@@ -665,7 +732,7 @@ fn install() {
 
     // Merge agentic hooks into existing config (preserve user hooks)
     let agentic_hooks: &[(&str, &[&str])] = &[
-        ("PreToolUse", &["EnterPlanMode", "Agent"]),
+        ("PreToolUse", &["EnterPlanMode", "Agent", "Bash"]),
         ("SessionStart", &["startup"]),
         ("SubagentStop", &["dev"]),
     ];

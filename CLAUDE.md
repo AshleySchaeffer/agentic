@@ -43,6 +43,9 @@ Single binary (`src/main.rs`) serves four roles via CLI dispatch:
 | Handler | Trigger | Behavior |
 |---|---|---|
 | `planning_protocol` | PreToolUse/EnterPlanMode | Injects planning protocol + `.claude/project-config.md` contents as `additionalContext` |
+| `agent_spawn` | PreToolUse/Agent | Forces worktree isolation on dev agents |
+| `merge_guard` | PreToolUse/Bash | Blocks `git merge` when branch merge-base doesn't match HEAD (stale worktree) |
+| `dev_stop` | SubagentStop | Blocks dev agent exit if uncommitted changes or unmerged branches exist |
 | `session_start` | SessionStart | Checks for git repo (prompts init if missing) and nested project detection (asks user to proceed or bail) |
 
 ### Key design constraints
@@ -51,3 +54,5 @@ Single binary (`src/main.rs`) serves four roles via CLI dispatch:
 - Uninstall removes only agentic-owned entries (matched by `"command": "agentic"`)
 - `planning-protocol.md` is never written to disk  - it exists only as a compiled-in string injected via hook context
 - `.claude/project-config.md` is injected into planning context via the EnterPlanMode hook, not via CLAUDE.md references
+
+@project-config.md
