@@ -24,7 +24,6 @@ const AGENTS: &[(&str, &str)] = &[
     ("config-gen.md", include_str!("../agents/config-gen.md")),
 ];
 
-
 const GLOBAL_CLAUDE_MD: &str = include_str!("../architect.md");
 const CODING_STANDARDS_MD: &str = include_str!("../coding-standards.md");
 const PLANNING_PROTOCOL: &str = include_str!("../planning-protocol.md");
@@ -142,6 +141,7 @@ struct HookInput {
     hook_event_name: String,
     tool_name: Option<String>,
     cwd: String,
+    tool_input: Option<Value>,
 }
 
 fn hook_dispatch() {
@@ -161,6 +161,14 @@ fn hook_dispatch() {
         ("PreToolUse", "EnterPlanMode") => {
             debug!("{} {} → planning_protocol", hook.hook_event_name, tool);
             planning_protocol(&hook);
+        }
+        ("PreToolUse", "Agent") => {
+            debug!("{} {} → agent_spawn", hook.hook_event_name, tool);
+            agent_spawn(&hook);
+        }
+        ("SubagentStop", _) => {
+            debug!("{} {} → dev_stop", hook.hook_event_name, tool);
+            dev_stop(&hook);
         }
         ("SessionStart", _) => {
             debug!("{} {} → session_start", hook.hook_event_name, tool);
@@ -198,6 +206,111 @@ fn planning_protocol(hook: &HookInput) {
         }
     });
     serde_json::to_writer(io::stdout(), &output).ok();
+}
+
+/// Hook 2: Agent Spawn — forces worktree isolation on dev agents.
+fn agent_spawn(hook: &HookInput) {
+    let is_dev = hook
+        .tool_input
+        .as_ref()
+        .and_then(|v| v.get("subagent_type"))
+        .and_then(Value::as_str)
+        == Some("dev");
+
+    if !is_dev {
+        debug!("agent_spawn: not a dev agent — no-op");
+        return;
+    }
+
+    debug!("agent_spawn: dev agent — injecting worktree isolation");
+    let output = serde_json::json!({
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "updatedInput": {
+                "isolation": "worktree"
+            }
+        }
+    });
+    serde_json::to_writer(io::stdout(), &output).ok();
+}
+
+/// Hook 3: Dev Stop — blocks exit if work isn't clean.
+fn dev_stop(hook: &HookInput) {
+    let cwd = &hook.cwd;
+
+    // 1. Check if we're in a git repo
+    let in_git = std::process::Command::new("git")
+        .args(["rev-parse", "--is-inside-work-tree"])
+        .current_dir(cwd)
+        .output()
+        .is_ok_and(|o| o.status.success());
+
+    if !in_git {
+        debug!("dev_stop: not in a git repo — skipping checks");
+        return;
+    }
+
+    // 2. Check for unmerged branches
+    let branch_output = std::process::Command::new("git")
+        .args(["branch", "--list"])
+        .current_dir(cwd)
+        .output();
+
+    if let Ok(output) = branch_output {
+        let branches_str = String::from_utf8_lossy(&output.stdout);
+        let mut unmerged = Vec::new();
+
+        for line in branches_str.lines() {
+            let trimmed = line.trim();
+            // Skip the current branch (marked with *)
+            if trimmed.starts_with('*') {
+                continue;
+            }
+            let branch_name = trimmed.trim();
+            if branch_name.is_empty() {
+                continue;
+            }
+
+            // Check if this branch has commits not in HEAD
+            let log_output = std::process::Command::new("git")
+                .args(["log", &format!("HEAD..{branch_name}"), "--oneline"])
+                .current_dir(cwd)
+                .output();
+
+            if let Ok(log) = log_output {
+                let log_str = String::from_utf8_lossy(&log.stdout);
+                if !log_str.trim().is_empty() {
+                    unmerged.push(branch_name.to_string());
+                }
+            }
+        }
+
+        if !unmerged.is_empty() {
+            let branches = unmerged.join(", ");
+            eprintln!(
+                "Unmerged branches detected: {branches}. Squash-merge each into the current branch (`git merge --squash <branch>`) and commit before completing."
+            );
+            process::exit(2);
+        }
+    }
+
+    // 3. Check for uncommitted changes
+    let status_output = std::process::Command::new("git")
+        .args(["status", "--porcelain"])
+        .current_dir(cwd)
+        .output();
+
+    if let Ok(output) = status_output {
+        let status_str = String::from_utf8_lossy(&output.stdout);
+        if !status_str.trim().is_empty() {
+            eprintln!(
+                "Uncommitted changes detected. Stage and commit all changes before completing."
+            );
+            process::exit(2);
+        }
+    }
+
+    debug!("dev_stop: all clean");
 }
 
 /// Walks up from `start`, returning the directory that contains `.git` (file or directory),
@@ -530,8 +643,9 @@ fn install() {
 
     // Merge agentic hooks into existing config (preserve user hooks)
     let agentic_hooks: &[(&str, &[&str])] = &[
-        ("PreToolUse", &["EnterPlanMode"]),
+        ("PreToolUse", &["EnterPlanMode", "Agent"]),
         ("SessionStart", &["startup"]),
+        ("SubagentStop", &["dev"]),
     ];
 
     let hooks_val = obj.entry("hooks").or_insert_with(|| serde_json::json!({}));
