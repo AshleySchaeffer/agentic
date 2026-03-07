@@ -77,6 +77,9 @@ const TIER_READONLY_ALLOW: &[&str] = &[
 ];
 const TIER_READONLY_DENY: &[&str] = &["Bash(sed -i *)"];
 
+const TIER_AGENT_ALLOW: &[&str] = &["Agent"];
+const TIER_AGENT_DENY: &[&str] = &[];
+
 const TIER_WRITE_ALLOW: &[&str] = &["Edit", "Write", "NotebookEdit"];
 const TIER_WRITE_DENY: &[&str] = &[
     "Edit(/.claude/settings.json)",
@@ -117,6 +120,9 @@ enum PermissionsCommand {
         /// Add read-only shell + file tool permissions
         #[arg(long)]
         readonly: bool,
+        /// Add agent spawning permissions (Agent)
+        #[arg(long)]
+        agent: bool,
         /// Add file editing permissions (Edit, Write, NotebookEdit)
         #[arg(long)]
         write: bool,
@@ -508,18 +514,21 @@ fn permissions(cmd: PermissionsCommand) {
         PermissionsCommand::Add {
             git,
             readonly,
+            agent,
             write,
         } => {
-            let interactive = !git && !readonly && !write;
+            let interactive = !git && !readonly && !agent && !write;
 
             let add_git = git || (interactive && prompt_yn("Add git workflow permissions?"));
             let add_readonly = readonly
                 || (interactive && prompt_yn("Add read-only shell + file tool permissions?"));
+            let add_agent =
+                agent || (interactive && prompt_yn("Add agent spawning permissions?"));
             let add_write = write
                 || (interactive
                     && prompt_yn("Add file editing permissions (Edit, Write, NotebookEdit)?"));
 
-            if !add_git && !add_readonly && !add_write {
+            if !add_git && !add_readonly && !add_agent && !add_write {
                 println!("No tiers selected.");
                 return;
             }
@@ -545,6 +554,12 @@ fn permissions(cmd: PermissionsCommand) {
                 total_deny += d;
                 println!("ok    readonly tier: {a} allow + {d} deny added");
             }
+            if add_agent {
+                let (a, d) = add_permissions(&mut settings, TIER_AGENT_ALLOW, TIER_AGENT_DENY);
+                total_allow += a;
+                total_deny += d;
+                println!("ok    agent tier: {a} allow + {d} deny added");
+            }
             if add_write {
                 let (a, d) = add_permissions(&mut settings, TIER_WRITE_ALLOW, TIER_WRITE_DENY);
                 total_allow += a;
@@ -569,12 +584,14 @@ fn permissions(cmd: PermissionsCommand) {
             let all_allow: Vec<&str> = TIER_GIT_ALLOW
                 .iter()
                 .chain(TIER_READONLY_ALLOW.iter())
+                .chain(TIER_AGENT_ALLOW.iter())
                 .chain(TIER_WRITE_ALLOW.iter())
                 .copied()
                 .collect();
             let all_deny: Vec<&str> = TIER_GIT_DENY
                 .iter()
                 .chain(TIER_READONLY_DENY.iter())
+                .chain(TIER_AGENT_DENY.iter())
                 .chain(TIER_WRITE_DENY.iter())
                 .copied()
                 .collect();

@@ -33,17 +33,18 @@ Installs to `~/.claude/`:
 
 ### Permissions
 
-`agentic permissions` manages project-local permissions in `.claude/settings.local.json`. Three tiers, applied additively:
+`agentic permissions` manages project-local permissions in `.claude/settings.local.json`. Four tiers, applied additively:
 
 | Tier | Flag | What it allows |
 |---|---|---|
 | git | `--git` | `git status`, `diff`, `log`, `add`, `commit`, `merge`, `branch`, `worktree`, `stash`, `checkout`, `rev-parse` |
 | readonly | `--readonly` | Read-only shell commands (`ls`, `cat`, `find`, etc.), `Read`, `Glob`, `Grep` |
+| agent | `--agent` | `Agent` (spawn subagents) |
 | write | `--write` | `Edit`, `Write`, `NotebookEdit` |
 
 ```bash
 agentic permissions add              # Interactive — prompts for each tier
-agentic permissions add --git --readonly --write  # Non-interactive — all tiers
+agentic permissions add --git --readonly --agent --write  # Non-interactive — all tiers
 agentic permissions remove           # Remove all agentic-managed permissions
 ```
 
