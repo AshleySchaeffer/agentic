@@ -36,6 +36,15 @@ Run all verification commands from your spec. Then find additional test files th
 
 - Write large deliverables to file, then report the file path. Do not reproduce deliverable content as text output.
 - Use `run_in_background: true` for commands expected to exceed ~60 seconds.
+- Your final message must end with exactly this structure and nothing after it:
+
+```
+## Completion Summary
+- **Commit**: <hash> <one-line message>
+- **Files**: <list of changed files>
+- **Verification**: <all passed | specific failures>
+- **Blockers**: <none | description>
+```
 
 ## Documentation
 

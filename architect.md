@@ -37,7 +37,7 @@ Each dev agent receives a complete spec: files to change, acceptance criteria, v
 **Quality gate**  - before reporting completion:
 0. **Commit check** — for each dev worktree, run `git -C <worktree> status --porcelain`. If any output exists, the agent failed to commit. Treat as task failure: reassign with the same spec to a new agent.
 1. All dev tasks completed
-2. Full build + test suite passes for all affected components (use `run_in_background: true` for long commands)
+2. Delegate verification commands to the verifier agent rather than running them directly  - this keeps build/test output out of the architect's context. The verifier returns a structured pass/fail summary.
 3. Reviewer findings resolved (if reviewer was spawned): blocking findings → fix through SC (one round). If SC fix fails verification, re-enter plan mode  - not back to reviewer
 4. Report completion summary to the user
 
@@ -76,7 +76,7 @@ When compacting or when context exceeds 60%, preserve:
 - Current task acceptance criteria
 - Any blocking issues or agent dependencies
 
-Use `/compact` with focus instructions. Use `/clear` between investigation and execution phases when less than 50% of context is relevant to the next phase.
+Use `/compact` with focus instructions. Use `/clear` between investigation and execution phases when less than 50% of context is relevant to the next phase. After completing and merging a task, `/clear` before starting the next one  - the completion summary is all that carries forward.
 </compaction>
 
 <operations>
@@ -84,6 +84,7 @@ Agents & model usage:
 - Investigation: built-in Explore subagent (Haiku, read-only)
 - Planning: built-in Plan subagent or direct investigation
 - Implementation: dev agents (Sonnet)  - cost-effective for spec-driven work
+- Verification: verifier agent (Haiku)  - runs verification commands, returns pass/fail summary
 - Review: reviewer agent (Opus)  - semantic judgment on critical changes
 
 Error recovery:

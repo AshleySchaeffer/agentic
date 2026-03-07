@@ -22,6 +22,7 @@ const AGENTS: &[(&str, &str)] = &[
     ("dev.md", include_str!("../agents/dev.md")),
     ("reviewer.md", include_str!("../agents/reviewer.md")),
     ("config-gen.md", include_str!("../agents/config-gen.md")),
+    ("verifier.md", include_str!("../agents/verifier.md")),
 ];
 
 const GLOBAL_CLAUDE_MD: &str = include_str!("../architect.md");
@@ -223,12 +224,16 @@ fn agent_spawn(hook: &HookInput) {
     }
 
     debug!("agent_spawn: dev agent — injecting worktree isolation");
+    let mut updated = hook.tool_input.clone().unwrap_or(serde_json::json!({}));
+    updated
+        .as_object_mut()
+        .unwrap()
+        .insert("isolation".to_string(), serde_json::json!("worktree"));
+
     let output = serde_json::json!({
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",
-            "updatedInput": {
-                "isolation": "worktree"
-            }
+            "updatedInput": updated
         }
     });
     serde_json::to_writer(io::stdout(), &output).ok();
@@ -615,7 +620,7 @@ fn install() {
     write_file_if_changed(CODING_STANDARDS_MD, &claude_dir.join("coding-standards.md"));
 
     // Install binary
-    let bin_dir = home.join(".local/bin");
+    let bin_dir = home.join(".cargo/bin");
     fs::create_dir_all(&bin_dir).unwrap();
     let exe = env::current_exe().unwrap();
     let bin_dst = bin_dir.join("agentic");
@@ -756,7 +761,7 @@ fn uninstall() {
         println!("ok    {} (hooks removed)", settings_path.display());
     }
 
-    let bin = home.join(".local/bin").join("agentic");
+    let bin = home.join(".cargo/bin").join("agentic");
     if bin.exists() {
         if let Err(e) = fs::remove_file(&bin) {
             eprintln!("failed to remove {}: {e}", bin.display());
