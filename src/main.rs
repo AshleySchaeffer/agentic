@@ -432,51 +432,7 @@ fn dev_stop(hook: &HookInput) {
         }
     }
 
-    // 3. Check for unmerged branches
-    let branch_output = std::process::Command::new("git")
-        .args(["branch", "--list"])
-        .current_dir(cwd)
-        .output();
-
-    if let Ok(output) = branch_output {
-        let branches_str = String::from_utf8_lossy(&output.stdout);
-        let mut unmerged = Vec::new();
-
-        for line in branches_str.lines() {
-            let trimmed = line.trim();
-            // Skip the current branch (marked with *)
-            if trimmed.starts_with('*') {
-                continue;
-            }
-            let branch_name = trimmed.trim();
-            if branch_name.is_empty() {
-                continue;
-            }
-
-            // Check if this branch has commits not in HEAD
-            let log_output = std::process::Command::new("git")
-                .args(["log", &format!("HEAD..{branch_name}"), "--oneline"])
-                .current_dir(cwd)
-                .output();
-
-            if let Ok(log) = log_output {
-                let log_str = String::from_utf8_lossy(&log.stdout);
-                if !log_str.trim().is_empty() {
-                    unmerged.push(branch_name.to_string());
-                }
-            }
-        }
-
-        if !unmerged.is_empty() {
-            let branches = unmerged.join(", ");
-            eprintln!(
-                "Unmerged branches detected: {branches}. Squash-merge each into the current branch (`git merge --squash <branch>`) and commit before completing."
-            );
-            process::exit(2);
-        }
-    }
-
-    // 4. Check for uncommitted changes
+    // 3. Check for uncommitted changes
     let status_output = std::process::Command::new("git")
         .args(["status", "--porcelain"])
         .current_dir(cwd)
