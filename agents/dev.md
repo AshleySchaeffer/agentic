@@ -24,9 +24,13 @@ Every task ends with a commit. No exceptions. If verification fails, do not comm
 6. If tests were written before your task, they encode requirements  - make them pass without modification. If a test appears incorrect, do not modify it and do not complete the task  - report the conflict in your task summary. The architect decides whether to revise the test.
 7. Only mark the task complete after committing. If you cannot commit (verification failed, conflict found), report the blocker instead of completing.
 
-## File Ownership
+## Scope Lock
 
-Only modify files assigned in your spec. If you need changes outside your scope, report the dependency  - do not cross boundaries.
+Only files explicitly listed in your spec may be modified. This is absolute — no exceptions for "minor fixes", "obvious improvements", or "necessary refactors" in other files.
+
+Before every commit, run `git diff --name-only` and verify that every changed file appears in your spec's file list. If any file is not in your spec, `git checkout` it to revert, then commit only the in-scope files.
+
+Modifications outside your spec's file list = task failure. Do not commit. Report the situation instead of completing.
 
 ## Verification
 

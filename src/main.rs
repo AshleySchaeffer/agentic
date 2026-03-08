@@ -282,7 +282,7 @@ fn merge_guard(hook: &HookInput) {
     }
 }
 
-/// Hook 3: Agent Spawn — forces worktree isolation on dev agents.
+/// Hook 3: Agent Spawn — forces worktree isolation on dev agents and appends scope lock footer.
 fn agent_spawn(hook: &HookInput) {
     let tool_input = match hook.tool_input.as_ref() {
         Some(v) => v,
@@ -299,20 +299,50 @@ fn agent_spawn(hook: &HookInput) {
         return;
     }
 
-    // Already has worktree isolation — no-op
+    let mut updated = tool_input.clone();
+    let obj = updated.as_object_mut().unwrap();
+
+    // Inject isolation=worktree if not already present
     if tool_input.get("isolation").and_then(Value::as_str) == Some("worktree") {
-        debug!("agent_spawn: already has isolation=worktree — no-op");
-        return;
+        debug!("agent_spawn: already has isolation=worktree — skipping injection");
+    } else {
+        obj.insert(
+            "isolation".to_string(),
+            Value::String("worktree".to_string()),
+        );
+        debug!("agent_spawn: injecting isolation=worktree for dev agent");
     }
 
-    // Clone tool_input and set isolation
-    let mut updated = tool_input.clone();
-    updated.as_object_mut().unwrap().insert(
-        "isolation".to_string(),
-        Value::String("worktree".to_string()),
+    // Get HEAD SHA for spawn-context footer
+    let head_sha = std::process::Command::new("git")
+        .args(["rev-parse", "--short", "HEAD"])
+        .current_dir(&hook.cwd)
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .map(|s| s.trim().to_string());
+
+    // Build scope lock footer
+    let footer = match head_sha {
+        Some(sha) => format!(
+            "\n\n---\n[spawn-context] base: {sha}\nSCOPE LOCK: Only modify files listed in your spec. Any other modification is a task failure. Before committing, run `git diff --name-only` and verify every file appears in your spec.\n---"
+        ),
+        None => "\n\n---\nSCOPE LOCK: Only modify files listed in your spec. Any other modification is a task failure. Before committing, run `git diff --name-only` and verify every file appears in your spec.\n---".to_string(),
+    };
+
+    // Append footer to the prompt field
+    let prompt = obj
+        .get("prompt")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string();
+    obj.insert(
+        "prompt".to_string(),
+        Value::String(format!("{prompt}{footer}")),
     );
 
-    debug!("agent_spawn: injecting isolation=worktree for dev agent");
+    debug!("agent_spawn: appended scope lock footer to dev agent prompt");
 
     let output = serde_json::json!({
         "hookSpecificOutput": {
