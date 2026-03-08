@@ -294,7 +294,35 @@ fn dev_stop(hook: &HookInput) {
         return;
     }
 
-    // 2. Check for unmerged branches
+    // 2. Check for commits ahead of merge-base
+    let merge_base_output = std::process::Command::new("git")
+        .args(["merge-base", "HEAD", "main"])
+        .current_dir(cwd)
+        .output();
+
+    match merge_base_output {
+        Ok(mb) if mb.status.success() => {
+            let merge_base = String::from_utf8_lossy(&mb.stdout).trim().to_string();
+            let head_output = std::process::Command::new("git")
+                .args(["rev-parse", "HEAD"])
+                .current_dir(cwd)
+                .output();
+            if let Ok(head) = head_output {
+                let head_sha = String::from_utf8_lossy(&head.stdout).trim().to_string();
+                if head_sha == merge_base {
+                    eprintln!(
+                        "No commits detected. The task is not complete — implement the required changes and commit before exiting."
+                    );
+                    process::exit(2);
+                }
+            }
+        }
+        _ => {
+            debug!("dev_stop: could not determine merge-base with main — skipping commit check");
+        }
+    }
+
+    // 3. Check for unmerged branches
     let branch_output = std::process::Command::new("git")
         .args(["branch", "--list"])
         .current_dir(cwd)
@@ -338,7 +366,7 @@ fn dev_stop(hook: &HookInput) {
         }
     }
 
-    // 3. Check for uncommitted changes
+    // 4. Check for uncommitted changes
     let status_output = std::process::Command::new("git")
         .args(["status", "--porcelain"])
         .current_dir(cwd)
@@ -555,8 +583,7 @@ fn permissions(cmd: PermissionsCommand) {
             let add_git = git || (interactive && prompt_yn("Add git workflow permissions?"));
             let add_readonly = readonly
                 || (interactive && prompt_yn("Add read-only shell + file tool permissions?"));
-            let add_agent =
-                agent || (interactive && prompt_yn("Add agent spawning permissions?"));
+            let add_agent = agent || (interactive && prompt_yn("Add agent spawning permissions?"));
             let add_write = write
                 || (interactive
                     && prompt_yn("Add file editing permissions (Edit, Write, NotebookEdit)?"));
