@@ -369,31 +369,47 @@ fn dev_stop(hook: &HookInput) {
         return;
     }
 
-    // 2. Check for commits ahead of merge-base
-    let merge_base_output = std::process::Command::new("git")
-        .args(["merge-base", "HEAD", "main"])
+    // 2. Check for commits ahead of merge-base (only applies to worktree branches, not main itself)
+    let current_branch = std::process::Command::new("git")
+        .args(["rev-parse", "--abbrev-ref", "HEAD"])
         .current_dir(cwd)
-        .output();
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .map(|s| s.trim().to_string())
+        .unwrap_or_default();
 
-    match merge_base_output {
-        Ok(mb) if mb.status.success() => {
-            let merge_base = String::from_utf8_lossy(&mb.stdout).trim().to_string();
-            let head_output = std::process::Command::new("git")
-                .args(["rev-parse", "HEAD"])
-                .current_dir(cwd)
-                .output();
-            if let Ok(head) = head_output {
-                let head_sha = String::from_utf8_lossy(&head.stdout).trim().to_string();
-                if head_sha == merge_base {
-                    eprintln!(
-                        "No commits detected. The task is not complete — implement the required changes and commit before exiting."
-                    );
-                    process::exit(2);
+    if current_branch == "main" {
+        debug!("dev_stop: on main branch — skipping commit check");
+    } else {
+        let merge_base_output = std::process::Command::new("git")
+            .args(["merge-base", "HEAD", "main"])
+            .current_dir(cwd)
+            .output();
+
+        match merge_base_output {
+            Ok(mb) if mb.status.success() => {
+                let merge_base = String::from_utf8_lossy(&mb.stdout).trim().to_string();
+                let head_output = std::process::Command::new("git")
+                    .args(["rev-parse", "HEAD"])
+                    .current_dir(cwd)
+                    .output();
+                if let Ok(head) = head_output {
+                    let head_sha = String::from_utf8_lossy(&head.stdout).trim().to_string();
+                    if head_sha == merge_base {
+                        eprintln!(
+                            "No commits detected. The task is not complete — implement the required changes and commit before exiting."
+                        );
+                        process::exit(2);
+                    }
                 }
             }
-        }
-        _ => {
-            debug!("dev_stop: could not determine merge-base with main — skipping commit check");
+            _ => {
+                debug!(
+                    "dev_stop: could not determine merge-base with main — skipping commit check"
+                );
+            }
         }
     }
 
