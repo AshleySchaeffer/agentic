@@ -383,32 +383,51 @@ fn dev_stop(hook: &HookInput) {
     if current_branch == "main" {
         debug!("dev_stop: on main branch — skipping commit check");
     } else {
-        let merge_base_output = std::process::Command::new("git")
-            .args(["merge-base", "HEAD", "main"])
+        // Check whether HEAD has any commits not reachable from main.
+        // If HEAD ^main is empty, the branch either never had work or was already
+        // merged into main. Distinguish by comparing HEAD to the tip of main:
+        // if HEAD == main tip, work was merged — allow. If HEAD is behind main tip,
+        // no work was done — block.
+        let unique_commits = std::process::Command::new("git")
+            .args(["log", "HEAD", "^main", "--oneline"])
             .current_dir(cwd)
             .output();
 
-        match merge_base_output {
-            Ok(mb) if mb.status.success() => {
-                let merge_base = String::from_utf8_lossy(&mb.stdout).trim().to_string();
-                let head_output = std::process::Command::new("git")
-                    .args(["rev-parse", "HEAD"])
-                    .current_dir(cwd)
-                    .output();
-                if let Ok(head) = head_output {
-                    let head_sha = String::from_utf8_lossy(&head.stdout).trim().to_string();
-                    if head_sha == merge_base {
-                        eprintln!(
-                            "No commits detected. The task is not complete — implement the required changes and commit before exiting."
-                        );
-                        process::exit(2);
-                    }
-                }
-            }
+        let has_unique = match unique_commits {
+            Ok(ref o) if o.status.success() => !o.stdout.is_empty(),
             _ => {
-                debug!(
-                    "dev_stop: could not determine merge-base with main — skipping commit check"
+                debug!("dev_stop: could not check unique commits — skipping commit check");
+                return;
+            }
+        };
+
+        if !has_unique {
+            // No unique commits. Check if HEAD == tip of main (merged) or behind (no work).
+            let main_tip = std::process::Command::new("git")
+                .args(["rev-parse", "main"])
+                .current_dir(cwd)
+                .output()
+                .ok()
+                .filter(|o| o.status.success())
+                .and_then(|o| String::from_utf8(o.stdout).ok())
+                .map(|s| s.trim().to_string());
+
+            let head_sha = std::process::Command::new("git")
+                .args(["rev-parse", "HEAD"])
+                .current_dir(cwd)
+                .output()
+                .ok()
+                .filter(|o| o.status.success())
+                .and_then(|o| String::from_utf8(o.stdout).ok())
+                .map(|s| s.trim().to_string());
+
+            if main_tip.is_some() && head_sha == main_tip {
+                debug!("dev_stop: branch tip matches main — work already merged, allowing exit");
+            } else {
+                eprintln!(
+                    "No commits detected. The task is not complete — implement the required changes and commit before exiting."
                 );
+                process::exit(2);
             }
         }
     }
