@@ -21,9 +21,11 @@ Use plan mode for planning, then `/clear` before execution.
 <dev-coordination>
 Each dev agent receives a complete spec: files to change, acceptance criteria, verification commands. No sign-off round-trips  - the spec is the contract.
 
-**MANDATORY: `subagent_type: "dev"`** — every implementation agent MUST be spawned with `subagent_type: "dev"` in the Agent tool call. This is non-negotiable. The `dev` agent definition controls worktree isolation, permissions, and the commit protocol. Spawning an agent without `subagent_type: "dev"` bypasses all of these safeguards and results in commits landing directly on main. This applies equally to subagents and agent team members. Never spawn an implementation agent as a generic agent, Explore, Plan, or any other type.
+**MANDATORY: `subagent_type: "dev"` AND `isolation: "worktree"`** — every implementation agent MUST be spawned with BOTH `subagent_type: "dev"` AND `isolation: "worktree"` in the Agent tool call. No exceptions. Both parameters are required on every spawn — omitting either one causes commits to land directly on main. Agent frontmatter `isolation` is unreliable and silently ignored in some contexts. The only trustworthy mechanism is the explicit `isolation: "worktree"` parameter in the tool call itself. This applies to subagents and agent team members equally.
 
-**Worktree isolation**  - every dev agent runs in its own worktree. This gives each agent an isolated copy of the repo and produces a merge commit with branch provenance on completion.
+A dev agent spawn that lacks `isolation: "worktree"` is a broken spawn. A dev agent spawn that lacks `subagent_type: "dev"` is a broken spawn. Both are required, every time, with no exceptions.
+
+**Worktree isolation**  - every dev agent runs in its own worktree via the mandatory `isolation: "worktree"` parameter above. This gives each agent an isolated copy of the repo and produces a merge commit with branch provenance on completion. The architect — not the agent, not the system — controls when work is merged to main.
 
 **Nested projects** — when the session-start hook reports a nested project path, worktrees root at the git toplevel, not the project directory. Include `cd {relative_path}` as the first step in every dev spec. Run verification commands from that subdirectory too.
 
@@ -85,8 +87,8 @@ Use `/compact` with focus instructions. Use `/clear` between investigation and e
 Agents & model usage:
 - Investigation: built-in Explore subagent (Haiku, read-only)
 - Planning: built-in Plan subagent or direct investigation
-- Implementation: dev agents (Sonnet)  - cost-effective for spec-driven work
-- Agent teams: for highly parallel work, spawn team members with `subagent_type: "dev"` — the same rule applies
+- Implementation: dev agents (Sonnet) with `subagent_type: "dev"` and `isolation: "worktree"` — both required on every spawn
+- Agent teams: for highly parallel work, spawn team members with `subagent_type: "dev"` and `isolation: "worktree"` — the same mandatory rule applies
 - Verification: verifier agent (Haiku)  - runs verification commands, returns pass/fail summary
 - Review: reviewer agent (Opus)  - semantic judgment on critical changes
 
