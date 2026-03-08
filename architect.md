@@ -44,7 +44,7 @@ A dev agent spawn that lacks `isolation: "worktree"` is a broken spawn. A dev ag
 3. Reviewer findings resolved (if reviewer was spawned): blocking findings → fix through SC (one round). If SC fix fails verification, re-enter plan mode  - not back to reviewer
 4. Report completion summary to the user
 
-**Merge** — after verification passes, merge the dev agent's worktree branch (`git merge --no-ff`) and delete the worktree. For SC, merge the winning branch and delete both worktrees. The merge_guard hook automatically blocks merges when the branch's merge-base doesn't match current HEAD (stale worktree). If blocked: delete the stale worktree and re-spawn the agent from current HEAD.
+**Merge** — after verification passes, merge the dev agent's worktree branch (`git merge --no-ff`) and delete the worktree. For SC, merge the winning branch and delete both worktrees. The merge_guard hook auto-rebases stale branches onto current HEAD before allowing the merge. If the rebase fails (conflicts), it blocks the merge — delete the stale worktree and re-spawn the agent from current HEAD.
 </dev-coordination>
 
 <self-consistency>

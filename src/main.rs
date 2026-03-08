@@ -266,13 +266,36 @@ fn merge_guard(hook: &HookInput) {
             let head_hash = String::from_utf8_lossy(&h.stdout).trim().to_string();
 
             if mb_hash != head_hash {
+                let mb_short = &mb_hash[..mb_hash.len().min(8)];
+                let head_short = &head_hash[..head_hash.len().min(8)];
+
                 eprintln!(
-                    "BLOCKED: Branch '{branch}' diverged from {mb_short} but HEAD is now {head_short}. \
-                    This worktree branched from a stale HEAD. Delete the worktree and re-spawn the agent.",
-                    mb_short = &mb_hash[..mb_hash.len().min(8)],
-                    head_short = &head_hash[..head_hash.len().min(8)],
+                    "Branch '{branch}' has stale base {mb_short}, rebasing onto {head_short}..."
                 );
-                process::exit(2);
+
+                let rebase = std::process::Command::new("git")
+                    .args(["rebase", "--onto", "HEAD", &mb_hash, branch])
+                    .current_dir(cwd)
+                    .output();
+
+                match rebase {
+                    Ok(r) if r.status.success() => {
+                        eprintln!("Rebase succeeded — merge is safe to proceed.");
+                        debug!("merge_guard: rebased {branch} onto {head_short}");
+                    }
+                    _ => {
+                        // Abort the failed rebase to restore clean state
+                        let _ = std::process::Command::new("git")
+                            .args(["rebase", "--abort"])
+                            .current_dir(cwd)
+                            .output();
+                        eprintln!(
+                            "BLOCKED: Rebase of '{branch}' onto {head_short} failed (conflicts). \
+                            Delete the worktree and re-spawn the agent from current HEAD."
+                        );
+                        process::exit(2);
+                    }
+                }
             }
             debug!("merge_guard: merge-base matches HEAD — merge is safe");
         }
