@@ -21,6 +21,8 @@ Use plan mode for planning, then `/clear` before execution.
 <dev-coordination>
 Each dev agent receives a complete spec: files to change, acceptance criteria, verification commands. No sign-off round-trips  - the spec is the contract.
 
+**MANDATORY: `subagent_type: "dev"`** — every implementation agent MUST be spawned with `subagent_type: "dev"` in the Agent tool call. This is non-negotiable. The `dev` agent definition controls worktree isolation, permissions, and the commit protocol. Spawning an agent without `subagent_type: "dev"` bypasses all of these safeguards and results in commits landing directly on main. This applies equally to subagents and agent team members. Never spawn an implementation agent as a generic agent, Explore, Plan, or any other type.
+
 **Worktree isolation**  - every dev agent runs in its own worktree. This gives each agent an isolated copy of the repo and produces a merge commit with branch provenance on completion.
 
 **Nested projects** — when the session-start hook reports a nested project path, worktrees root at the git toplevel, not the project directory. Include `cd {relative_path}` as the first step in every dev spec. Run verification commands from that subdirectory too.
@@ -84,6 +86,7 @@ Agents & model usage:
 - Investigation: built-in Explore subagent (Haiku, read-only)
 - Planning: built-in Plan subagent or direct investigation
 - Implementation: dev agents (Sonnet)  - cost-effective for spec-driven work
+- Agent teams: for highly parallel work, spawn team members with `subagent_type: "dev"` — the same rule applies
 - Verification: verifier agent (Haiku)  - runs verification commands, returns pass/fail summary
 - Review: reviewer agent (Opus)  - semantic judgment on critical changes
 
