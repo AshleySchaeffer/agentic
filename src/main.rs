@@ -169,10 +169,6 @@ fn hook_dispatch() {
             debug!("{} {} → planning_protocol", hook.hook_event_name, tool);
             planning_protocol(&hook);
         }
-        ("PreToolUse", "Agent") => {
-            debug!("{} {} → agent_spawn", hook.hook_event_name, tool);
-            agent_spawn(&hook);
-        }
         ("PreToolUse", "Bash") => {
             debug!("{} {} → merge_guard", hook.hook_event_name, tool);
             merge_guard(&hook);
@@ -219,37 +215,7 @@ fn planning_protocol(hook: &HookInput) {
     serde_json::to_writer(io::stdout(), &output).ok();
 }
 
-/// Hook 2: Agent Spawn — forces worktree isolation on dev agents.
-fn agent_spawn(hook: &HookInput) {
-    let is_dev = hook
-        .tool_input
-        .as_ref()
-        .and_then(|v| v.get("subagent_type"))
-        .and_then(Value::as_str)
-        == Some("dev");
-
-    if !is_dev {
-        debug!("agent_spawn: not a dev agent — no-op");
-        return;
-    }
-
-    debug!("agent_spawn: dev agent — injecting worktree isolation");
-    let mut updated = hook.tool_input.clone().unwrap_or(serde_json::json!({}));
-    updated
-        .as_object_mut()
-        .unwrap()
-        .insert("isolation".to_string(), serde_json::json!("worktree"));
-
-    let output = serde_json::json!({
-        "hookSpecificOutput": {
-            "hookEventName": "PreToolUse",
-            "updatedInput": updated
-        }
-    });
-    serde_json::to_writer(io::stdout(), &output).ok();
-}
-
-/// Hook 3: Merge Guard — blocks `git merge` when the branch has a stale base.
+/// Hook 2: Merge Guard — blocks `git merge` when the branch has a stale base.
 /// Prevents merging worktree branches that diverged from an older HEAD.
 fn merge_guard(hook: &HookInput) {
     let command = hook
@@ -732,7 +698,7 @@ fn install() {
 
     // Merge agentic hooks into existing config (preserve user hooks)
     let agentic_hooks: &[(&str, &[&str])] = &[
-        ("PreToolUse", &["EnterPlanMode", "Agent", "Bash"]),
+        ("PreToolUse", &["EnterPlanMode", "Bash"]),
         ("SessionStart", &["startup"]),
         ("SubagentStop", &["dev"]),
     ];
