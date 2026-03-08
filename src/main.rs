@@ -169,6 +169,10 @@ fn hook_dispatch() {
             debug!("{} {} → planning_protocol", hook.hook_event_name, tool);
             planning_protocol(&hook);
         }
+        ("PreToolUse", "Agent") => {
+            debug!("{} {} → agent_spawn", hook.hook_event_name, tool);
+            agent_spawn(&hook);
+        }
         ("PreToolUse", "Bash") => {
             debug!("{} {} → merge_guard", hook.hook_event_name, tool);
             merge_guard(&hook);
@@ -276,6 +280,47 @@ fn merge_guard(hook: &HookInput) {
             debug!("merge_guard: could not determine merge-base — allowing merge");
         }
     }
+}
+
+/// Hook 3: Agent Spawn — forces worktree isolation on dev agents.
+fn agent_spawn(hook: &HookInput) {
+    let tool_input = match hook.tool_input.as_ref() {
+        Some(v) => v,
+        None => return,
+    };
+
+    // Only act on dev agents
+    let subagent_type = tool_input
+        .get("subagent_type")
+        .and_then(Value::as_str)
+        .unwrap_or("");
+    if subagent_type != "dev" {
+        debug!("agent_spawn: subagent_type={subagent_type} — no-op");
+        return;
+    }
+
+    // Already has worktree isolation — no-op
+    if tool_input.get("isolation").and_then(Value::as_str) == Some("worktree") {
+        debug!("agent_spawn: already has isolation=worktree — no-op");
+        return;
+    }
+
+    // Clone tool_input and set isolation
+    let mut updated = tool_input.clone();
+    updated.as_object_mut().unwrap().insert(
+        "isolation".to_string(),
+        Value::String("worktree".to_string()),
+    );
+
+    debug!("agent_spawn: injecting isolation=worktree for dev agent");
+
+    let output = serde_json::json!({
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "updatedInput": updated
+        }
+    });
+    serde_json::to_writer(io::stdout(), &output).ok();
 }
 
 /// Hook 4: Dev Stop — blocks exit if work isn't clean.
@@ -725,7 +770,7 @@ fn install() {
 
     // Merge agentic hooks into existing config (preserve user hooks)
     let agentic_hooks: &[(&str, &[&str])] = &[
-        ("PreToolUse", &["EnterPlanMode", "Bash"]),
+        ("PreToolUse", &["EnterPlanMode", "Agent", "Bash"]),
         ("SessionStart", &["startup"]),
         ("SubagentStop", &["dev"]),
     ];
