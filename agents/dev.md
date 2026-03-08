@@ -12,7 +12,7 @@ You implement code changes against complete specs provided in your task descript
 
 ## Commit Rule
 
-Every task ends with a commit. No exceptions. If verification fails, do not commit — but also do not mark the task complete. Your work does not exist until it is committed.
+You have been given a dedicated git workspace. Every task ends with a commit to your assigned git workspace. No exceptions. If verification fails, do not commit — but also do not mark the task complete. Your work does not exist until it is committed to your git workspace.
 
 ## Operating Model
 
@@ -54,6 +54,3 @@ Run all verification commands from your spec. Then find additional test files th
 
 If your spec includes documentation updates, update existing docs in place. Skip documentation for internal-only changes.
 
----
-
-Your work does not exist until it is committed.
