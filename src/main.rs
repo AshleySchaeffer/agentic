@@ -149,6 +149,8 @@ struct HookInput {
     tool_name: Option<String>,
     cwd: String,
     tool_input: Option<Value>,
+    #[serde(default)]
+    agent_transcript_path: Option<String>,
 }
 
 fn hook_dispatch() {
@@ -305,7 +307,7 @@ fn merge_guard(hook: &HookInput) {
     }
 }
 
-/// Hook 3: Agent Spawn — forces worktree isolation on dev agents and appends scope lock footer.
+/// Hook 3: Agent Spawn — dirty tree check, worktree isolation, and base SHA footer.
 fn agent_spawn(hook: &HookInput) {
     let tool_input = match hook.tool_input.as_ref() {
         Some(v) => v,
@@ -320,6 +322,24 @@ fn agent_spawn(hook: &HookInput) {
     if subagent_type != "dev" {
         debug!("agent_spawn: subagent_type={subagent_type} — no-op");
         return;
+    }
+
+    // Dirty tree check: block if working tree has uncommitted changes
+    let status = std::process::Command::new("git")
+        .args(["status", "--porcelain"])
+        .current_dir(&hook.cwd)
+        .output();
+
+    match status {
+        Ok(ref o) if o.status.success() => {
+            if !o.stdout.is_empty() {
+                eprintln!("Dirty working tree. Commit or stash before spawning dev agents.");
+                process::exit(2);
+            }
+        }
+        _ => {
+            debug!("agent_spawn: could not check git status — skipping dirty tree check");
+        }
     }
 
     let mut updated = tool_input.clone();
@@ -346,26 +366,20 @@ fn agent_spawn(hook: &HookInput) {
         .and_then(|o| String::from_utf8(o.stdout).ok())
         .map(|s| s.trim().to_string());
 
-    // Build scope lock footer
-    let footer = match head_sha {
-        Some(sha) => format!(
-            "\n\n---\n[spawn-context] base: {sha}\nSCOPE LOCK: Only modify files listed in your spec. Any other modification is a task failure. Before committing, run `git diff --name-only` and verify every file appears in your spec.\n---"
-        ),
-        None => "\n\n---\nSCOPE LOCK: Only modify files listed in your spec. Any other modification is a task failure. Before committing, run `git diff --name-only` and verify every file appears in your spec.\n---".to_string(),
-    };
-
-    // Append footer to the prompt field
-    let prompt = obj
-        .get("prompt")
-        .and_then(Value::as_str)
-        .unwrap_or("")
-        .to_string();
-    obj.insert(
-        "prompt".to_string(),
-        Value::String(format!("{prompt}{footer}")),
-    );
-
-    debug!("agent_spawn: appended scope lock footer to dev agent prompt");
+    // Append minimal footer only if we have a SHA
+    if let Some(sha) = head_sha {
+        let footer = format!("\n\n---\n[spawn-context] base: {sha}\n---");
+        let prompt = obj
+            .get("prompt")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
+        obj.insert(
+            "prompt".to_string(),
+            Value::String(format!("{prompt}{footer}")),
+        );
+        debug!("agent_spawn: appended base SHA footer to dev agent prompt");
+    }
 
     let output = serde_json::json!({
         "hookSpecificOutput": {
@@ -376,7 +390,72 @@ fn agent_spawn(hook: &HookInput) {
     serde_json::to_writer(io::stdout(), &output).ok();
 }
 
-/// Hook 4: Dev Stop — blocks exit if work isn't clean.
+/// Extract scope file list from agent transcript.
+/// Returns None if transcript can't be read, parsed, or has no ## Scope section.
+fn extract_scope_from_transcript(transcript_path: &str) -> Option<Vec<String>> {
+    let content = fs::read_to_string(transcript_path).ok()?;
+
+    // Try parsing as JSONL (one JSON object per line)
+    let messages: Vec<Value> = content
+        .lines()
+        .filter(|l| !l.trim().is_empty())
+        .filter_map(|line| serde_json::from_str(line).ok())
+        .collect();
+
+    // Find first user/human message
+    let user_text = messages.iter().find_map(|msg| {
+        let role = msg.get("role").and_then(Value::as_str)?;
+        if role != "user" && role != "human" {
+            return None;
+        }
+        let content = msg.get("content")?;
+        // Content may be a string or array of content blocks
+        if let Some(s) = content.as_str() {
+            return Some(s.to_string());
+        }
+        if let Some(arr) = content.as_array() {
+            let text = arr.iter().find_map(|block| {
+                block
+                    .get("text")
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+            })?;
+            return Some(text);
+        }
+        None
+    })?;
+
+    // Find ## Scope section and collect file paths
+    let mut in_scope = false;
+    let mut files = Vec::new();
+
+    for line in user_text.lines() {
+        if line.starts_with("## Scope") {
+            in_scope = true;
+            continue;
+        }
+        if in_scope {
+            if line.starts_with("##") {
+                break;
+            }
+            if let Some(path) = line.strip_prefix("- ") {
+                let path = path.trim();
+                if !path.is_empty() {
+                    files.push(path.to_string());
+                }
+            }
+        }
+    }
+
+    if files.is_empty() {
+        debug!("extract_scope: no ## Scope section found or section is empty");
+        return None;
+    }
+
+    Some(files)
+}
+
+/// Hook 4: Dev Stop — scope enforcement, uncommitted changes check, and commit presence check.
 fn dev_stop(hook: &HookInput) {
     let cwd = &hook.cwd;
 
@@ -392,7 +471,50 @@ fn dev_stop(hook: &HookInput) {
         return;
     }
 
-    // 2. Check for commits ahead of merge-base (only applies to worktree branches, not main itself)
+    // 2. Scope enforcement via transcript parsing
+    if let Some(ref transcript_path) = hook.agent_transcript_path {
+        debug!("dev_stop: checking scope from transcript {transcript_path}");
+        match extract_scope_from_transcript(transcript_path) {
+            Some(scope_files) => {
+                // Get files changed since branching from main
+                let diff_output = std::process::Command::new("git")
+                    .args(["diff", "--name-only", "main...HEAD"])
+                    .current_dir(cwd)
+                    .output();
+
+                match diff_output {
+                    Ok(ref o) if o.status.success() => {
+                        let changed = String::from_utf8_lossy(&o.stdout);
+                        let out_of_scope: Vec<&str> = changed
+                            .lines()
+                            .filter(|f| !f.trim().is_empty())
+                            .filter(|f| !scope_files.iter().any(|s| s == f.trim()))
+                            .collect();
+
+                        if !out_of_scope.is_empty() {
+                            eprintln!("Out-of-scope files modified:");
+                            for f in &out_of_scope {
+                                eprintln!("  {f}");
+                            }
+                            eprintln!("Only files listed in ## Scope may be modified.");
+                            process::exit(2);
+                        }
+                        debug!("dev_stop: scope check passed");
+                    }
+                    _ => {
+                        debug!("dev_stop: could not run git diff for scope check — skipping");
+                    }
+                }
+            }
+            None => {
+                debug!("dev_stop: no scope extracted from transcript — skipping scope check");
+            }
+        }
+    } else {
+        debug!("dev_stop: no transcript path — skipping scope check");
+    }
+
+    // 3. Check for commits ahead of merge-base (only applies to worktree branches, not main itself)
     let current_branch = std::process::Command::new("git")
         .args(["rev-parse", "--abbrev-ref", "HEAD"])
         .current_dir(cwd)
