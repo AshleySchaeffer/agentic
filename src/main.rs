@@ -176,12 +176,16 @@ fn hook_dispatch() {
             agent_spawn(&hook);
         }
         ("PreToolUse", "Bash") => {
-            debug!("{} {} → merge_guard", hook.hook_event_name, tool);
-            merge_guard(&hook);
+            debug!("{} {} → bash_guard", hook.hook_event_name, tool);
+            bash_guard(&hook);
         }
         ("SubagentStop", _) => {
             debug!("{} {} → dev_stop", hook.hook_event_name, tool);
             dev_stop(&hook);
+        }
+        ("PostToolUse", "Bash") => {
+            debug!("{} {} → merge_cleanup", hook.hook_event_name, tool);
+            merge_cleanup(&hook);
         }
         ("SessionStart", _) => {
             debug!("{} {} → session_start", hook.hook_event_name, tool);
@@ -221,15 +225,32 @@ fn planning_protocol(hook: &HookInput) {
     serde_json::to_writer(io::stdout(), &output).ok();
 }
 
-/// Hook 2: Merge Guard — blocks `git merge` when the branch has a stale base.
-/// Prevents merging worktree branches that diverged from an older HEAD.
-fn merge_guard(hook: &HookInput) {
+/// Hook 2: Bash Guard — blocks dangerous git operations in worktrees and handles stale merges.
+fn bash_guard(hook: &HookInput) {
     let command = hook
         .tool_input
         .as_ref()
         .and_then(|v| v.get("command"))
         .and_then(Value::as_str)
         .unwrap_or("");
+
+    // Block cherry-pick and rebase in worktrees — agents should report blockers, not fix infrastructure
+    if command.contains("git cherry-pick") || command.contains("git rebase") {
+        let cwd = Path::new(&hook.cwd);
+        // In a worktree, .git is a file (not a directory) containing "gitdir: ..."
+        let dot_git = cwd.join(".git");
+        if dot_git.is_file() {
+            let op = if command.contains("cherry-pick") {
+                "cherry-pick"
+            } else {
+                "rebase"
+            };
+            eprintln!(
+                "Blocked: git {op} is not allowed in worktrees. Report the blocker to the architect."
+            );
+            process::exit(2);
+        }
+    }
 
     if !command.contains("git merge") {
         return;
@@ -307,6 +328,109 @@ fn merge_guard(hook: &HookInput) {
     }
 }
 
+/// Hook: Merge Cleanup — after a successful `git merge`, remove the worktree and branch.
+fn merge_cleanup(hook: &HookInput) {
+    let command = hook
+        .tool_input
+        .as_ref()
+        .and_then(|v| v.get("command"))
+        .and_then(Value::as_str)
+        .unwrap_or("");
+
+    if !command.contains("git merge") {
+        return;
+    }
+
+    // Extract branch name (same logic as bash_guard)
+    let parts: Vec<&str> = command.split_whitespace().collect();
+    let merge_idx = match parts.iter().position(|&p| p == "merge") {
+        Some(i) => i,
+        None => return,
+    };
+    let branch = match parts[merge_idx + 1..]
+        .iter()
+        .rev()
+        .find(|&&p| !p.starts_with('-'))
+    {
+        Some(b) => *b,
+        None => return,
+    };
+
+    let cwd = &hook.cwd;
+
+    // Find worktree for this branch
+    let worktree_list = std::process::Command::new("git")
+        .args(["worktree", "list", "--porcelain"])
+        .current_dir(cwd)
+        .output();
+
+    let worktree_path = match worktree_list {
+        Ok(ref o) if o.status.success() => {
+            let output = String::from_utf8_lossy(&o.stdout);
+            // Porcelain format: blocks separated by blank lines, each has "worktree <path>" and "branch refs/heads/<name>"
+            let mut path = None;
+            let mut current_path = None;
+            for line in output.lines() {
+                if let Some(p) = line.strip_prefix("worktree ") {
+                    current_path = Some(p.to_string());
+                } else if let Some(b) = line.strip_prefix("branch refs/heads/")
+                    && b == branch
+                {
+                    path = current_path.take();
+                    break;
+                }
+            }
+            path
+        }
+        _ => None,
+    };
+
+    if let Some(ref wt_path) = worktree_path {
+        debug!("merge_cleanup: removing worktree {wt_path} for branch {branch}");
+        let remove = std::process::Command::new("git")
+            .args(["worktree", "remove", wt_path])
+            .current_dir(cwd)
+            .output();
+        match remove {
+            Ok(r) if r.status.success() => {
+                eprintln!("Removed worktree: {wt_path}");
+            }
+            _ => {
+                // Force remove if regular remove fails (e.g. untracked files)
+                let force = std::process::Command::new("git")
+                    .args(["worktree", "remove", "--force", wt_path])
+                    .current_dir(cwd)
+                    .output();
+                match force {
+                    Ok(r) if r.status.success() => {
+                        eprintln!("Removed worktree (forced): {wt_path}");
+                    }
+                    _ => {
+                        eprintln!("Warning: could not remove worktree {wt_path}");
+                    }
+                }
+            }
+        }
+    }
+
+    // Delete the branch
+    let delete = std::process::Command::new("git")
+        .args(["branch", "-D", branch])
+        .current_dir(cwd)
+        .output();
+    match delete {
+        Ok(r) if r.status.success() => {
+            eprintln!("Deleted branch: {branch}");
+            debug!("merge_cleanup: deleted branch {branch}");
+        }
+        _ => {
+            debug!(
+                "merge_cleanup: could not delete branch {branch} (may not exist or already deleted)"
+            );
+        }
+    }
+}
+
 /// Hook 3: Agent Spawn — dirty tree check, worktree isolation, and base SHA footer.
 fn agent_spawn(hook: &HookInput) {
     let tool_input = match hook.tool_input.as_ref() {
@@ -333,7 +457,7 @@ fn agent_spawn(hook: &HookInput) {
     match status {
         Ok(ref o) if o.status.success() => {
             if !o.stdout.is_empty() {
-                eprintln!("Dirty working tree. Commit or stash before spawning dev agents.");
+                eprintln!("Dirty working tree. Commit before spawning dev agents.");
                 process::exit(2);
             }
         }
@@ -937,6 +1061,7 @@ fn install() {
     // Merge agentic hooks into existing config (preserve user hooks)
     let agentic_hooks: &[(&str, &[&str])] = &[
         ("PreToolUse", &["EnterPlanMode", "Agent", "Bash"]),
+        ("PostToolUse", &["Bash"]),
         ("SessionStart", &["startup"]),
         ("SubagentStop", &["dev"]),
     ];

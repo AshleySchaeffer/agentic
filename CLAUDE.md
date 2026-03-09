@@ -43,9 +43,10 @@ Single binary (`src/main.rs`) serves four roles via CLI dispatch:
 | Handler | Trigger | Behavior |
 |---|---|---|
 | `planning_protocol` | PreToolUse/EnterPlanMode | Injects planning protocol + `.claude/project-config.md` contents as `additionalContext` |
-| `agent_spawn` | PreToolUse/Agent | Forces worktree isolation on dev agents |
-| `merge_guard` | PreToolUse/Bash | Blocks `git merge` when branch merge-base doesn't match HEAD (stale worktree) |
-| `dev_stop` | SubagentStop | Blocks dev agent exit if uncommitted changes or unmerged branches exist |
+| `agent_spawn` | PreToolUse/Agent | Blocks on dirty tree; forces worktree isolation on dev agents |
+| `bash_guard` | PreToolUse/Bash | Blocks cherry-pick/rebase in worktrees; auto-rebases stale branches before merge |
+| `merge_cleanup` | PostToolUse/Bash | After `git merge`, removes the merged branch's worktree and deletes the branch |
+| `dev_stop` | SubagentStop | Scope enforcement via transcript; blocks on uncommitted changes or missing commits |
 | `session_start` | SessionStart | Checks for git repo (prompts init if missing) and nested project detection (asks user to proceed or bail) |
 
 ### Key design constraints

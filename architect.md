@@ -28,7 +28,7 @@ Each dev agent receives a complete spec: files to change, acceptance criteria, v
 3. Reviewer findings resolved (if reviewer was spawned): blocking findings → fix through SC (one round). If SC fix fails verification, re-enter plan mode - not back to reviewer
 4. Report completion summary to the user
 
-**Merge** — after verification passes, merge the dev agent's worktree branch (`git merge --no-ff`) and delete the worktree. For SC, merge the winning branch and delete both worktrees. The merge_guard hook auto-rebases stale branches. If rebase fails (conflicts), delete the stale worktree and re-spawn from current HEAD.
+**Merge** — after verification passes, merge the dev agent's worktree branch (`git merge --no-ff`). If merge is blocked by stale base (rebase conflict), re-spawn the agent from current HEAD.
 </dev-coordination>
 
 <self-consistency>
@@ -41,7 +41,7 @@ The architect runs verification on both worktrees and compares:
 
 Both fail → the spec is wrong, not the devs. Delete both worktrees. Re-enter plan mode with failure context (what was attempted, failure modes - shared vs. different, suspected spec gap). Do not retry the same spec.
 
-Merge winning worktree branch. Delete the losing one.
+Merge the winning branch. Delete the losing worktree: `git worktree remove <path> && git branch -D <branch>`.
 </self-consistency>
 
 <coding-standards>

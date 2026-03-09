@@ -28,7 +28,7 @@ Installs to `~/.claude/`:
 | dev agent | `~/.claude/agents/dev.md` | Sonnet - implements against complete specs |
 | reviewer agent | `~/.claude/agents/reviewer.md` | Opus - focused review with task-specific checklist |
 | config-gen agent | `~/.claude/agents/config-gen.md` | Haiku - scans project and generates project-config.md |
-| hooks binary | `~/.cargo/bin/agentic` | 5 hook handlers compiled to a single binary |
+| hooks binary | `~/.cargo/bin/agentic` | 6 hook handlers compiled to a single binary |
 | settings.json | `~/.claude/settings.json` | Hook matchers |
 
 ### Permissions
@@ -62,7 +62,8 @@ Hooks enforce what prompts cannot guarantee. Every invariant that can be checked
 |---|---|---|
 | `planning_protocol` | PreToolUse/EnterPlanMode | Injects planning protocol + project-config.md as context |
 | `agent_spawn` | PreToolUse/Agent | Blocks on dirty working tree; injects `isolation: "worktree"` for dev agents |
-| `merge_guard` | PreToolUse/Bash | Auto-rebases stale worktree branches; blocks on rebase conflicts |
+| `bash_guard` | PreToolUse/Bash | Blocks cherry-pick/rebase in worktrees; auto-rebases stale branches before merge |
+| `merge_cleanup` | PostToolUse/Bash | After `git merge`, removes the merged branch's worktree and deletes the branch |
 | `dev_stop` | SubagentStop | Parses `## Scope` from agent transcript, blocks out-of-scope file changes; blocks on uncommitted changes or missing commits |
 | `session_start` | SessionStart | Checks for git repo; detects nested projects |
 
@@ -117,7 +118,7 @@ architect.md               # Architect protocol → ~/.claude/CLAUDE.md (~70 lin
 coding-standards.md        # Full standards (progressive disclosure)
 planning-protocol.md       # Planning protocol (injected via hook)
 Cargo.toml                 # Binary: agentic
-src/main.rs                # 5 hook handlers + install/uninstall/permissions
+src/main.rs                # 6 hook handlers + install/uninstall/permissions
 agents/
   dev.md                   # Implementation agent (Sonnet, ~25 lines)
   reviewer.md              # Review agent (Opus, high-stakes only)
