@@ -28,11 +28,11 @@ Each dev agent receives a complete spec: files to change, acceptance criteria, v
 
 **Quality gate** - before reporting completion:
 1. All dev tasks completed
-2. Delegate verification commands to the verifier agent rather than running them directly - this keeps build/test output out of the architect's context. The verifier returns a structured pass/fail summary.
-3. Reviewer findings resolved (if reviewer was spawned): blocking findings → fix through SC (one round). If SC fix fails verification, re-enter plan mode - not back to reviewer
+2. Run verification on the worktree branch BEFORE merging - never merge unverified work. Delegate verification commands to the verifier agent rather than running them directly - this keeps build/test output out of the architect's context. The verifier returns a structured pass/fail summary.
+3. Reviewer findings resolved (if reviewer was spawned): blocking findings - fix through SC (one round). If SC fix fails verification, re-enter plan mode - not back to reviewer
 4. Report completion summary to the user
 
-**Merge**  - after verification passes, merge the dev agent's worktree branch (`git merge --no-ff`). If merge is blocked by stale base (rebase conflict), re-spawn the agent from current HEAD.
+**Merge** - only after verification passes on the worktree, merge the dev agent's worktree branch (`git merge --no-ff`). If merge is blocked by stale base (rebase conflict), re-spawn the agent from current HEAD.
 </dev-coordination>
 
 <self-consistency>
