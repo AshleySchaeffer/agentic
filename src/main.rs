@@ -431,7 +431,7 @@ fn merge_cleanup(hook: &HookInput) {
     }
 }
 
-/// Hook 3: Agent Spawn — dirty tree check, worktree isolation, and base SHA footer.
+/// Hook 3: Agent Spawn - dirty tree check and worktree isolation enforcement.
 fn agent_spawn(hook: &HookInput) {
     let tool_input = match hook.tool_input.as_ref() {
         Some(v) => v,
@@ -466,52 +466,17 @@ fn agent_spawn(hook: &HookInput) {
         }
     }
 
-    let mut updated = tool_input.clone();
-    let obj = updated.as_object_mut().unwrap();
+    // Fail-closed: block if isolation isn't set to "worktree"
+    let has_worktree = tool_input.get("isolation").and_then(Value::as_str) == Some("worktree");
 
-    // Inject isolation=worktree if not already present
-    if tool_input.get("isolation").and_then(Value::as_str) == Some("worktree") {
-        debug!("agent_spawn: already has isolation=worktree — skipping injection");
+    if has_worktree {
+        debug!("agent_spawn: isolation=worktree confirmed — allowing");
     } else {
-        obj.insert(
-            "isolation".to_string(),
-            Value::String("worktree".to_string()),
+        eprintln!(
+            "Dev agent must use worktree isolation. Add `isolation: \"worktree\"` to the Agent call."
         );
-        debug!("agent_spawn: injecting isolation=worktree for dev agent");
+        process::exit(2);
     }
-
-    // Get HEAD SHA for spawn-context footer
-    let head_sha = std::process::Command::new("git")
-        .args(["rev-parse", "--short", "HEAD"])
-        .current_dir(&hook.cwd)
-        .output()
-        .ok()
-        .filter(|o| o.status.success())
-        .and_then(|o| String::from_utf8(o.stdout).ok())
-        .map(|s| s.trim().to_string());
-
-    // Append minimal footer only if we have a SHA
-    if let Some(sha) = head_sha {
-        let footer = format!("\n\n---\n[spawn-context] base: {sha}\n---");
-        let prompt = obj
-            .get("prompt")
-            .and_then(Value::as_str)
-            .unwrap_or("")
-            .to_string();
-        obj.insert(
-            "prompt".to_string(),
-            Value::String(format!("{prompt}{footer}")),
-        );
-        debug!("agent_spawn: appended base SHA footer to dev agent prompt");
-    }
-
-    let output = serde_json::json!({
-        "hookSpecificOutput": {
-            "hookEventName": "PreToolUse",
-            "updatedInput": updated
-        }
-    });
-    serde_json::to_writer(io::stdout(), &output).ok();
 }
 
 /// Extract scope file list from agent transcript.
