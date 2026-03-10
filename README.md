@@ -60,10 +60,9 @@ Hooks enforce what prompts cannot guarantee. Every invariant that can be checked
 
 | Hook | Trigger | Enforcement |
 |---|---|---|
-| `planning_protocol` | PreToolUse/EnterPlanMode | Injects planning protocol + project-config.md as context |
+| `planning_protocol` | PreToolUse/EnterPlanMode | Wipes stale worktrees; injects planning protocol + project-config.md as context |
 | `agent_spawn` | PreToolUse/Agent | Blocks on dirty working tree; blocks dev agents without `isolation: "worktree"` (fail-closed) |
 | `bash_guard` | PreToolUse/Bash | Blocks cherry-pick/rebase in worktrees; auto-rebases stale branches before merge |
-| `merge_cleanup` | PostToolUse/Bash | After `git merge`, removes the merged branch's worktree and deletes the branch |
 | `dev_stop` | SubagentStop | Parses `## Scope` from agent transcript, blocks out-of-scope file changes; blocks on uncommitted changes or missing commits |
 | `session_start` | SessionStart | Checks for git repo; detects nested projects |
 
