@@ -8,7 +8,7 @@ Multi-agent coding setups fail in predictable ways. Agentic addresses the three 
 
 **Agent teams don't scale.** Communication overhead grows super-linearly beyond 3-4 agents ([Kim et al. 2025](https://arxiv.org/abs/2512.08296)), and 2 diverse agents match or exceed 16 homogeneous ones ([Li et al. 2025](https://arxiv.org/abs/2602.03794)). Agentic uses 3 task-oriented agents (dev on Sonnet, reviewer on Opus, config-gen on Haiku) with the main Opus session as architect - model diversity over headcount.
 
-**Instructions get ignored.** Claude follows each instruction with ~90% accuracy, but 10 simultaneous instructions compound to ~35% ([Curse of Instructions, ICLR 2025](https://openreview.net/forum?id=R6q67CDBCH)). Agentic applies one principle: if a hook can enforce it, the prompt is silent on it. Hooks guarantee invariants mechanically — dirty tree checks, worktree isolation, file scope enforcement. Prompts are reserved for judgment guidance only.
+**Instructions get ignored.** Claude follows each instruction with ~90% accuracy, but 10 simultaneous instructions compound to ~35% ([Curse of Instructions, ICLR 2025](https://openreview.net/forum?id=R6q67CDBCH)). Agentic applies one principle: if a hook can enforce it, the prompt is silent on it. Hooks guarantee invariants mechanically  - dirty tree checks, worktree isolation, file scope enforcement. Prompts are reserved for judgment guidance only.
 
 **LLM-on-LLM review doesn't work.** Multi-Agent Debate frameworks fail to consistently beat Self-Consistency - sampling the same model twice and voting ([ICLR 2025 MAD evaluation](https://iclr.cc/virtual/2025/poster/31346), [Smit et al. ICML 2024](https://arxiv.org/abs/2311.17371)). Agentic uses automated verification as the primary quality gate, with a focused reviewer agent only for high-stakes semantic concerns.
 
@@ -43,8 +43,8 @@ Installs to `~/.claude/`:
 | write | `--write` | `Edit`, `Write`, `NotebookEdit` |
 
 ```bash
-agentic permissions add              # Interactive — prompts for each tier
-agentic permissions add --git --readonly --agent --write  # Non-interactive — all tiers
+agentic permissions add              # Interactive  - prompts for each tier
+agentic permissions add --git --readonly --agent --write  # Non-interactive  - all tiers
 agentic permissions remove           # Remove all agentic-managed permissions
 ```
 
@@ -86,7 +86,7 @@ On plan mode entry, a hook injects a classification protocol:
 - **Pattern-match** (extending existing code): scope and design decisions only
 - **Novel** (new abstractions): design AND implementation decisions, with function signatures and data flow
 
-Every spec includes a `## Scope` section with file paths — the contract for mechanical scope enforcement.
+Every spec includes a `## Scope` section with file paths  - the contract for mechanical scope enforcement.
 
 ### Quality gate
 
@@ -103,13 +103,13 @@ Before completion: all tasks done, verification passes (via verifier agent), rev
 
 ## Design Decisions
 
-1. **Hook-enforced invariants** — if a hook can enforce it, the prompt is silent on it. Dirty tree checks, worktree isolation, and file scope are mechanical guarantees, not instructions to follow.
-2. **Transcript-based scope enforcement** — the dev_stop hook parses the agent's transcript for the `## Scope` section, making scope violations impossible to commit rather than merely discouraged.
-3. **Fewer task-oriented agents** — communication overhead is super-linear beyond 3-4 agents; diversity beats headcount ([Kim et al. 2025](https://arxiv.org/abs/2512.08296), [Li et al. 2025](https://arxiv.org/abs/2602.03794))
-4. **Self-consistency as default** — MAD frameworks don't reliably beat sampling twice and voting ([ICLR 2025](https://iclr.cc/virtual/2025/poster/31346)). SC applies to all non-simple tasks.
-5. **Upfront specs, no sign-off cycles** — each round-trip compounds super-linear overhead ([Kim et al. 2025](https://arxiv.org/abs/2512.08296))
-6. **Minimal prompts** — instruction compliance degrades exponentially with count ([Curse of Instructions, ICLR 2025](https://openreview.net/forum?id=R6q67CDBCH)). Architect protocol is ~70 lines, dev prompt is ~25 lines.
-7. **Model diversity** — Opus for orchestration/review, Sonnet for implementation, Haiku for config/verification ([Li et al. 2025](https://arxiv.org/abs/2602.03794))
+1. **Hook-enforced invariants**  - if a hook can enforce it, the prompt is silent on it. Dirty tree checks, worktree isolation, and file scope are mechanical guarantees, not instructions to follow.
+2. **Transcript-based scope enforcement**  - the dev_stop hook parses the agent's transcript for the `## Scope` section, making scope violations impossible to commit rather than merely discouraged.
+3. **Fewer task-oriented agents**  - communication overhead is super-linear beyond 3-4 agents; diversity beats headcount ([Kim et al. 2025](https://arxiv.org/abs/2512.08296), [Li et al. 2025](https://arxiv.org/abs/2602.03794))
+4. **Self-consistency as default**  - MAD frameworks don't reliably beat sampling twice and voting ([ICLR 2025](https://iclr.cc/virtual/2025/poster/31346)). SC applies to all non-simple tasks.
+5. **Upfront specs, no sign-off cycles**  - each round-trip compounds super-linear overhead ([Kim et al. 2025](https://arxiv.org/abs/2512.08296))
+6. **Minimal prompts**  - instruction compliance degrades exponentially with count ([Curse of Instructions, ICLR 2025](https://openreview.net/forum?id=R6q67CDBCH)). Architect protocol is ~70 lines, dev prompt is ~25 lines.
+7. **Model diversity**  - Opus for orchestration/review, Sonnet for implementation, Haiku for config/verification ([Li et al. 2025](https://arxiv.org/abs/2602.03794))
 
 ## Files
 
