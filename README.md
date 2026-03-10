@@ -61,7 +61,7 @@ Hooks enforce what prompts cannot guarantee. Every invariant that can be checked
 | Hook | Trigger | Enforcement |
 |---|---|---|
 | `planning_protocol` | PreToolUse/EnterPlanMode | Injects planning protocol + project-config.md as context |
-| `agent_spawn` | PreToolUse/Agent | Blocks on dirty working tree; injects `isolation: "worktree"` for dev agents |
+| `agent_spawn` | PreToolUse/Agent | Blocks on dirty working tree; blocks dev agents without `isolation: "worktree"` (fail-closed) |
 | `bash_guard` | PreToolUse/Bash | Blocks cherry-pick/rebase in worktrees; auto-rebases stale branches before merge |
 | `merge_cleanup` | PostToolUse/Bash | After `git merge`, removes the merged branch's worktree and deletes the branch |
 | `dev_stop` | SubagentStop | Parses `## Scope` from agent transcript, blocks out-of-scope file changes; blocks on uncommitted changes or missing commits |
@@ -80,6 +80,10 @@ Graceful degradation: if the transcript can't be read or has no `## Scope` secti
 | Simple tasks | Single dev agent in a worktree |
 | Everything else | Self-consistency - 2 devs per task with same spec |
 
+### Phased execution
+
+Before spawning agents, the architect maps sub-task dependencies (file overlap, data flow, build order). Independent sub-tasks run their SC pairs in parallel. Dependent sub-tasks are serialized - complete and merge before spawning the next.
+
 ### Planning
 
 On plan mode entry, a hook injects a classification protocol:
@@ -90,7 +94,7 @@ Every spec includes a `## Scope` section with file paths  - the contract for mec
 
 ### Quality gate
 
-Before completion: all tasks done, verification passes (via verifier agent), reviewer findings resolved (if spawned). The `dev_stop` hook ensures agents commit their work and stay within scope.
+Before completion: all tasks done, verification passes on the worktree branch before merge (via verifier agent), reviewer findings resolved (if spawned). The `dev_stop` hook ensures agents commit their work and stay within scope.
 
 ## Agents
 
