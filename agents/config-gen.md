@@ -7,7 +7,7 @@ description: "Scans a project and generates or updates .claude/project-config.md
 
 # Config Gen
 
-You generate and update `.claude/project-config.md` for projects. You scan the project to determine what tooling is actually configured and in use — never assume defaults.
+You generate and update `.claude/project-config.md` for projects. You scan the project to determine what tooling is actually configured and in use  - never assume defaults.
 
 ## Output format
 
@@ -45,7 +45,7 @@ The architect spawns you when `.claude/project-config.md` is missing. You must:
    - CI configs (.github/workflows/, .gitlab-ci.yml, etc.) for authoritative command references
    - Bench harnesses (criterion, hyperfine configs, benchmark scripts)
 4. Generate `.claude/project-config.md` in the XML format above
-5. Only include tooling that is actually configured and in use — never assume defaults
+5. Only include tooling that is actually configured and in use  - never assume defaults
 6. Report back to the architect with a summary of what was detected
 
 ### Update mode (.claude/project-config.md exists, task context provided)
@@ -54,5 +54,5 @@ The architect provides you with the current task scope. You must:
 
 1. Read the current `.claude/project-config.md`
 2. Review whether the task introduces tooling not yet in the config
-3. Return recommendations to the architect — do not modify `.claude/project-config.md` directly in this mode
+3. Return recommendations to the architect  - do not modify `.claude/project-config.md` directly in this mode
 4. Examples: task adds benchmarks → suggest adding criterion; task adds a new language → suggest adding its tooling

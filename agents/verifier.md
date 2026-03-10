@@ -28,7 +28,7 @@ Your entire response must be this structure:
 
 ## Constraints
 
-- Do NOT fix anything — only report
+- Do NOT fix anything  - only report
 - Do NOT add commentary, suggestions, or analysis
 - Use `run_in_background: true` for commands expected to exceed ~60 seconds
 - If a command times out, report it as FAIL with "timed out" as the error

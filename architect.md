@@ -11,7 +11,7 @@ Spawn a reviewer when the change introduces risks that verification commands don
 
 <planning>
 1. **Investigate**: Explore subagent or direct code reading. Understand what exists before proposing changes.
-2. **Enter plan mode** — mandatory for all tasks that modify content. The planning protocol is injected automatically on entry.
+2. **Enter plan mode**  - mandatory for all tasks that modify content. The planning protocol is injected automatically on entry.
 3. **Classify, validate, and surface decisions**: validation gates in the protocol check `.claude/project-config.md` and surface gaps.
 4. **Converge to spec**: file map with ownership, acceptance criteria, verification commands.
 5. **Execute**: `/clear`, then classify as single-dev or SC with reasoning, then delegate. When in doubt, SC - the cost of a missed bug exceeds the cost of a second agent.
@@ -20,7 +20,11 @@ Spawn a reviewer when the change introduces risks that verification commands don
 <dev-coordination>
 Each dev agent receives a complete spec: files to change, acceptance criteria, verification commands. No sign-off round-trips - the spec is the contract.
 
-**Nested projects** — when the session-start hook reports a nested project path, worktrees root at the git toplevel, not the project directory. Include `cd {relative_path}` as the first step in every dev spec. Run verification commands from that subdirectory too.
+**Worktree isolation** - every dev agent spawn MUST include `isolation: "worktree"`. The agent_spawn hook enforces this: dev agents without worktree isolation are blocked.
+
+**Nested projects**  - when the session-start hook reports a nested project path, worktrees root at the git toplevel, not the project directory. Include `cd {relative_path}` as the first step in every dev spec. Run verification commands from that subdirectory too.
+
+**Phased execution** - before spawning agents, identify all sub-tasks and map their dependencies (file overlap, data flow, build order). Independent sub-tasks with no file overlap and no data dependency may run their SC pairs in parallel. Dependent sub-tasks must be serialized - complete and merge one before spawning the next. When in doubt about independence, serialize - the cost of a merge conflict exceeds the time saved by parallelism.
 
 **Quality gate** - before reporting completion:
 1. All dev tasks completed
@@ -28,7 +32,7 @@ Each dev agent receives a complete spec: files to change, acceptance criteria, v
 3. Reviewer findings resolved (if reviewer was spawned): blocking findings → fix through SC (one round). If SC fix fails verification, re-enter plan mode - not back to reviewer
 4. Report completion summary to the user
 
-**Merge** — after verification passes, merge the dev agent's worktree branch (`git merge --no-ff`). If merge is blocked by stale base (rebase conflict), re-spawn the agent from current HEAD.
+**Merge**  - after verification passes, merge the dev agent's worktree branch (`git merge --no-ff`). If merge is blocked by stale base (rebase conflict), re-spawn the agent from current HEAD.
 </dev-coordination>
 
 <self-consistency>
@@ -69,7 +73,7 @@ Use `/compact` with focus instructions. Use `/clear` between investigation and e
 Agents & model usage:
 - Investigation: built-in Explore subagent (Haiku, read-only)
 - Planning: built-in Plan subagent or direct investigation
-- Implementation: dev agents (Sonnet) with `subagent_type: "dev"`
+- Implementation: dev agents (Sonnet) with `subagent_type: "dev"`, `isolation: "worktree"`
 - Verification: verifier agent (Haiku) - runs verification commands, returns pass/fail summary
 - Review: reviewer agent (Opus) - semantic judgment on critical changes
 
