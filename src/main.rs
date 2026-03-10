@@ -193,65 +193,66 @@ fn hook_dispatch() {
     }
 }
 
-/// Hook 1: Adaptive Planning Protocol
-/// Wipes stale worktrees, then injects the full planning protocol + .claude/project-config.md as additionalContext when plan mode is entered.
-fn planning_protocol(hook: &HookInput) {
-    // Clean up stale worktrees before injecting protocol
+/// Remove all non-main worktrees and their branches.
+fn cleanup_worktrees(cwd: &str) {
     let worktree_list = std::process::Command::new("git")
         .args(["worktree", "list", "--porcelain"])
-        .current_dir(&hook.cwd)
+        .current_dir(cwd)
         .output();
 
-    if let Ok(ref o) = worktree_list
-        && o.status.success()
-    {
-        let output = String::from_utf8_lossy(&o.stdout);
-        // Parse porcelain blocks: separated by blank lines
-        // First block is always the main worktree - skip it
-        let mut blocks = output.split("\n\n").filter(|b| !b.trim().is_empty());
-        blocks.next(); // skip main worktree
+    let output = match worktree_list {
+        Ok(ref o) if o.status.success() => String::from_utf8_lossy(&o.stdout).into_owned(),
+        _ => return,
+    };
 
-        for block in blocks {
-            let mut path: Option<&str> = None;
-            let mut branch: Option<&str> = None;
-            for line in block.lines() {
-                if let Some(p) = line.strip_prefix("worktree ") {
-                    path = Some(p);
-                } else if let Some(b) = line.strip_prefix("branch refs/heads/") {
-                    branch = Some(b);
+    // Porcelain format: blocks separated by blank lines. First block is always the main worktree.
+    let mut blocks = output.split("\n\n").filter(|b| !b.trim().is_empty());
+    blocks.next(); // skip main worktree
+
+    for block in blocks {
+        let mut path: Option<&str> = None;
+        let mut branch: Option<&str> = None;
+        for line in block.lines() {
+            if let Some(p) = line.strip_prefix("worktree ") {
+                path = Some(p);
+            } else if let Some(b) = line.strip_prefix("branch refs/heads/") {
+                branch = Some(b);
+            }
+        }
+        if let Some(wt_path) = path {
+            debug!("cleanup_worktrees: removing {wt_path}");
+            let result = std::process::Command::new("git")
+                .args(["worktree", "remove", "--force", wt_path])
+                .current_dir(cwd)
+                .output();
+            match result {
+                Ok(r) if r.status.success() => {
+                    eprintln!("Removed worktree: {wt_path}");
+                }
+                _ => {
+                    eprintln!("Warning: could not remove worktree {wt_path}");
                 }
             }
-            if let Some(wt_path) = path {
-                debug!("planning_protocol: removing stale worktree {wt_path}");
-                let result = std::process::Command::new("git")
-                    .args(["worktree", "remove", "--force", wt_path])
-                    .current_dir(&hook.cwd)
+            if let Some(br) = branch {
+                let del = std::process::Command::new("git")
+                    .args(["branch", "-D", br])
+                    .current_dir(cwd)
                     .output();
-                match result {
-                    Ok(r) if r.status.success() => {
-                        eprintln!("Removed stale worktree: {wt_path}");
-                    }
-                    _ => {
-                        eprintln!("Warning: could not remove worktree {wt_path}");
-                    }
-                }
-                if let Some(br) = branch {
-                    debug!("planning_protocol: deleting branch {br}");
-                    let del = std::process::Command::new("git")
-                        .args(["branch", "-D", br])
-                        .current_dir(&hook.cwd)
-                        .output();
-                    match del {
-                        Ok(r) if r.status.success() => {
-                            eprintln!("Deleted branch: {br}");
-                        }
-                        _ => {
-                            eprintln!("Warning: could not delete branch {br}");
-                        }
-                    }
+                if del.is_ok_and(|r| r.status.success()) {
+                    eprintln!("Deleted branch: {br}");
                 }
             }
         }
+    }
+}
+
+/// Hook 1: Adaptive Planning Protocol
+/// Wipes stale worktrees (main worktree only), then injects the full planning protocol + .claude/project-config.md as additionalContext when plan mode is entered.
+fn planning_protocol(hook: &HookInput) {
+    // Only clean worktrees from the main worktree (.git is a directory, not a file)
+    let dot_git = Path::new(&hook.cwd).join(".git");
+    if dot_git.is_dir() {
+        cleanup_worktrees(&hook.cwd);
     }
 
     let cwd = Path::new(&hook.cwd);
