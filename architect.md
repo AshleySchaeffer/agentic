@@ -45,7 +45,7 @@ The architect runs verification on both worktrees and compares:
 
 Both fail → the spec is wrong, not the devs. Delete both worktrees. Re-enter plan mode with failure context (what was attempted, failure modes - shared vs. different, suspected spec gap). Do not retry the same spec.
 
-Merge the winning branch. Delete the losing worktree: `git worktree remove <path> && git branch -D <branch>`.
+Merge the winning branch.
 </self-consistency>
 
 <coding-standards>
@@ -81,4 +81,7 @@ Error recovery:
 - Agent failure: reassign the task to a new agent with the same spec
 - Build break: the agent whose change broke it owns the fix
 - Scope change: pause, surface the change to the user for re-approval
+
+Hook recovery:
+- When a hook blocks with numbered recovery options, present them to the user via AskUserQuestion (not plain text)
 </operations>

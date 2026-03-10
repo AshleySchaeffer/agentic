@@ -183,10 +183,6 @@ fn hook_dispatch() {
             debug!("{} {} → dev_stop", hook.hook_event_name, tool);
             dev_stop(&hook);
         }
-        ("PostToolUse", "Bash") => {
-            debug!("{} {} → merge_cleanup", hook.hook_event_name, tool);
-            merge_cleanup(&hook);
-        }
         ("SessionStart", _) => {
             debug!("{} {} → session_start", hook.hook_event_name, tool);
             session_start(&hook);
@@ -198,8 +194,66 @@ fn hook_dispatch() {
 }
 
 /// Hook 1: Adaptive Planning Protocol
-/// Injects the full planning protocol + .claude/project-config.md as additionalContext when plan mode is entered.
+/// Wipes stale worktrees, then injects the full planning protocol + .claude/project-config.md as additionalContext when plan mode is entered.
 fn planning_protocol(hook: &HookInput) {
+    // Clean up stale worktrees before injecting protocol
+    let worktree_list = std::process::Command::new("git")
+        .args(["worktree", "list", "--porcelain"])
+        .current_dir(&hook.cwd)
+        .output();
+
+    if let Ok(ref o) = worktree_list
+        && o.status.success()
+    {
+        let output = String::from_utf8_lossy(&o.stdout);
+        // Parse porcelain blocks: separated by blank lines
+        // First block is always the main worktree - skip it
+        let mut blocks = output.split("\n\n").filter(|b| !b.trim().is_empty());
+        blocks.next(); // skip main worktree
+
+        for block in blocks {
+            let mut path: Option<&str> = None;
+            let mut branch: Option<&str> = None;
+            for line in block.lines() {
+                if let Some(p) = line.strip_prefix("worktree ") {
+                    path = Some(p);
+                } else if let Some(b) = line.strip_prefix("branch refs/heads/") {
+                    branch = Some(b);
+                }
+            }
+            if let Some(wt_path) = path {
+                debug!("planning_protocol: removing stale worktree {wt_path}");
+                let result = std::process::Command::new("git")
+                    .args(["worktree", "remove", "--force", wt_path])
+                    .current_dir(&hook.cwd)
+                    .output();
+                match result {
+                    Ok(r) if r.status.success() => {
+                        eprintln!("Removed stale worktree: {wt_path}");
+                    }
+                    _ => {
+                        eprintln!("Warning: could not remove worktree {wt_path}");
+                    }
+                }
+                if let Some(br) = branch {
+                    debug!("planning_protocol: deleting branch {br}");
+                    let del = std::process::Command::new("git")
+                        .args(["branch", "-D", br])
+                        .current_dir(&hook.cwd)
+                        .output();
+                    match del {
+                        Ok(r) if r.status.success() => {
+                            eprintln!("Deleted branch: {br}");
+                        }
+                        _ => {
+                            eprintln!("Warning: could not delete branch {br}");
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     let cwd = Path::new(&hook.cwd);
     let config_path = cwd.join(".claude/project-config.md");
 
@@ -328,109 +382,6 @@ fn bash_guard(hook: &HookInput) {
     }
 }
 
-/// Hook: Merge Cleanup — after a successful `git merge`, remove the worktree and branch.
-fn merge_cleanup(hook: &HookInput) {
-    let command = hook
-        .tool_input
-        .as_ref()
-        .and_then(|v| v.get("command"))
-        .and_then(Value::as_str)
-        .unwrap_or("");
-
-    if !command.contains("git merge") {
-        return;
-    }
-
-    // Extract branch name (same logic as bash_guard)
-    let parts: Vec<&str> = command.split_whitespace().collect();
-    let merge_idx = match parts.iter().position(|&p| p == "merge") {
-        Some(i) => i,
-        None => return,
-    };
-    let branch = match parts[merge_idx + 1..]
-        .iter()
-        .rev()
-        .find(|&&p| !p.starts_with('-'))
-    {
-        Some(b) => *b,
-        None => return,
-    };
-
-    let cwd = &hook.cwd;
-
-    // Find worktree for this branch
-    let worktree_list = std::process::Command::new("git")
-        .args(["worktree", "list", "--porcelain"])
-        .current_dir(cwd)
-        .output();
-
-    let worktree_path = match worktree_list {
-        Ok(ref o) if o.status.success() => {
-            let output = String::from_utf8_lossy(&o.stdout);
-            // Porcelain format: blocks separated by blank lines, each has "worktree <path>" and "branch refs/heads/<name>"
-            let mut path = None;
-            let mut current_path = None;
-            for line in output.lines() {
-                if let Some(p) = line.strip_prefix("worktree ") {
-                    current_path = Some(p.to_string());
-                } else if let Some(b) = line.strip_prefix("branch refs/heads/")
-                    && b == branch
-                {
-                    path = current_path.take();
-                    break;
-                }
-            }
-            path
-        }
-        _ => None,
-    };
-
-    if let Some(ref wt_path) = worktree_path {
-        debug!("merge_cleanup: removing worktree {wt_path} for branch {branch}");
-        let remove = std::process::Command::new("git")
-            .args(["worktree", "remove", wt_path])
-            .current_dir(cwd)
-            .output();
-        match remove {
-            Ok(r) if r.status.success() => {
-                eprintln!("Removed worktree: {wt_path}");
-            }
-            _ => {
-                // Force remove if regular remove fails (e.g. untracked files)
-                let force = std::process::Command::new("git")
-                    .args(["worktree", "remove", "--force", wt_path])
-                    .current_dir(cwd)
-                    .output();
-                match force {
-                    Ok(r) if r.status.success() => {
-                        eprintln!("Removed worktree (forced): {wt_path}");
-                    }
-                    _ => {
-                        eprintln!("Warning: could not remove worktree {wt_path}");
-                    }
-                }
-            }
-        }
-    }
-
-    // Delete the branch
-    let delete = std::process::Command::new("git")
-        .args(["branch", "-D", branch])
-        .current_dir(cwd)
-        .output();
-    match delete {
-        Ok(r) if r.status.success() => {
-            eprintln!("Deleted branch: {branch}");
-            debug!("merge_cleanup: deleted branch {branch}");
-        }
-        _ => {
-            debug!(
-                "merge_cleanup: could not delete branch {branch} (may not exist or already deleted)"
-            );
-        }
-    }
-}
-
 /// Hook 3: Agent Spawn - dirty tree check and worktree isolation enforcement.
 fn agent_spawn(hook: &HookInput) {
     let tool_input = match hook.tool_input.as_ref() {
@@ -457,7 +408,16 @@ fn agent_spawn(hook: &HookInput) {
     match status {
         Ok(ref o) if o.status.success() => {
             if !o.stdout.is_empty() {
-                eprintln!("Dirty working tree. Commit before spawning dev agents.");
+                eprintln!("BLOCKED: Dirty working tree. Uncommitted changes:");
+                let dirty = String::from_utf8_lossy(&o.stdout);
+                for line in dirty.lines() {
+                    eprintln!("  {line}");
+                }
+                eprintln!();
+                eprintln!("Recovery options:");
+                eprintln!("  1. Commit - stage and commit these changes, then retry");
+                eprintln!("  2. Stash - git stash, then retry");
+                eprintln!("  3. Bail - stop and let the user handle it");
                 process::exit(2);
             }
         }
@@ -1026,7 +986,6 @@ fn install() {
     // Merge agentic hooks into existing config (preserve user hooks)
     let agentic_hooks: &[(&str, &[&str])] = &[
         ("PreToolUse", &["EnterPlanMode", "Agent", "Bash"]),
-        ("PostToolUse", &["Bash"]),
         ("SessionStart", &["startup"]),
         ("SubagentStop", &["dev"]),
     ];
